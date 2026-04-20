@@ -16,6 +16,13 @@
 
 ---
 
+## Migration history
+
+| File | Description |
+|---|---|
+| `20260419000000_initial_schema.sql` | Sprint 1 — creates `sessions`, `characters`, `game_state`, and `event_log` tables with RLS policies. |
+| `20260420000000_sprint2_schema.sql` | Sprint 2 — adds `tolerance_threshold`, `drinks_consumed`, `slot`, and `personality_traits` to `characters`; adds `join_token` and `player_count` to `sessions`; creates `idx_sessions_join_token` index; seeds the default session join token. |
+
 ## Tables
 
 | Table | Purpose |

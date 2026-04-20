@@ -1,8 +1,25 @@
 'use client'
 
 import { useState, useEffect, useRef, KeyboardEvent } from 'react'
+import QRCode from 'qrcode'
 
-const SESSION_ID = process.env.NEXT_PUBLIC_SESSION_ID ?? 'default-session'
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type AppScreen = 'creation' | 'lobby' | 'narration'
+
+interface SessionInfo {
+  session_id: string
+  join_token: string
+  player_count: number
+  name: string
+}
+
+interface PlayerSlot {
+  slot: number
+  character_name: string | null
+}
 
 interface DMResponse {
   narration: string
@@ -19,7 +36,249 @@ interface LogEntry {
   isHistory?: boolean
 }
 
-export default function DMScreen() {
+// ---------------------------------------------------------------------------
+// Session Creation Modal
+// ---------------------------------------------------------------------------
+
+function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) => void }) {
+  const [adventureName, setAdventureName] = useState('The Wild Sheep Chase')
+  const [playerCount, setPlayerCount] = useState<2 | 3 | 4>(4)
+  const [isCreating, setIsCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleBeginAdventure() {
+    setIsCreating(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: adventureName, player_count: playerCount }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error ?? 'Failed to create session')
+      }
+      const data = await res.json()
+      onCreated({
+        session_id: data.session_id,
+        join_token: data.join_token,
+        player_count: playerCount,
+        name: adventureName,
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+      setIsCreating(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-gray-950 flex items-center justify-center p-6 z-50">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-lg p-8 space-y-8">
+        {/* Title */}
+        <div className="text-center space-y-1">
+          <h1 className="text-3xl font-bold text-amber-400 font-serif tracking-wide">
+            Spring Ridge
+          </h1>
+          <p className="text-gray-400 text-sm">AI Dungeon Master</p>
+        </div>
+
+        {/* Adventure name */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-300">Adventure Name</label>
+          <input
+            type="text"
+            value={adventureName}
+            onChange={(e) => setAdventureName(e.target.value)}
+            className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+          />
+        </div>
+
+        {/* Player count */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-300">Number of Players</label>
+          <div className="grid grid-cols-3 gap-3">
+            {([2, 3, 4] as const).map((n) => (
+              <button
+                key={n}
+                onClick={() => setPlayerCount(n)}
+                className={`rounded-xl border-2 py-5 text-2xl font-bold transition-all ${
+                  playerCount === n
+                    ? 'border-amber-500 bg-amber-500/10 text-amber-400 shadow-lg shadow-amber-500/20'
+                    : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-500 hover:text-gray-200'
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <p className="text-red-400 text-sm text-center">{error}</p>
+        )}
+
+        {/* Begin button */}
+        <button
+          onClick={handleBeginAdventure}
+          disabled={isCreating || !adventureName.trim()}
+          className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-colors shadow-lg"
+        >
+          {isCreating ? 'Creating adventure...' : 'Begin Adventure'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// QR Code image (canvas rendered via qrcode library)
+// ---------------------------------------------------------------------------
+
+function QRCodeImage({ url, size = 160 }: { url: string; size?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    if (!canvasRef.current) return
+    QRCode.toCanvas(canvasRef.current, url, {
+      width: size,
+      margin: 2,
+      color: { dark: '#000000', light: '#FFFFFF' },
+    }).catch(console.error)
+  }, [url, size])
+
+  return <canvas ref={canvasRef} className="rounded-lg" />
+}
+
+// ---------------------------------------------------------------------------
+// QR Lobby Screen
+// ---------------------------------------------------------------------------
+
+function LobbyScreen({
+  session,
+  onStartAdventure,
+}: {
+  session: SessionInfo
+  onStartAdventure: () => void
+}) {
+  const [players, setPlayers] = useState<PlayerSlot[]>([])
+  const [host, setHost] = useState('')
+
+  // Resolve host once on mount (client-only)
+  useEffect(() => {
+    setHost(window.location.host)
+  }, [])
+
+  // Poll for joined players every 3 seconds
+  useEffect(() => {
+    let cancelled = false
+
+    async function poll() {
+      try {
+        const res = await fetch(`/api/sessions/${session.session_id}/players`)
+        if (!res.ok) return
+        const data: Array<{ slot: number; character_name: string }> = await res.json()
+        if (!cancelled) setPlayers(data)
+      } catch {
+        // silent — polling
+      }
+    }
+
+    poll()
+    const interval = setInterval(poll, 3000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [session.session_id])
+
+  const slots = Array.from({ length: session.player_count }, (_, i) => i + 1)
+  const joinedSlots = new Set(players.map((p) => p.slot))
+  const joinedCount = players.length
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-950 text-gray-100 font-serif overflow-hidden">
+      {/* Header */}
+      <header className="flex-shrink-0 px-6 py-4 bg-gray-900 border-b border-gray-800 text-center">
+        <h1 className="text-2xl font-bold text-amber-400 tracking-wide">{session.name}</h1>
+        <p className="text-gray-400 text-sm mt-1">Players — scan to join</p>
+      </header>
+
+      {/* QR grid */}
+      <main className="flex-1 flex flex-col items-center justify-center px-6 py-8">
+        <div
+          className={`grid gap-6 w-full max-w-3xl ${
+            session.player_count === 2
+              ? 'grid-cols-2'
+              : session.player_count === 3
+              ? 'grid-cols-3'
+              : 'grid-cols-2 md:grid-cols-4'
+          }`}
+        >
+          {slots.map((slot) => {
+            const joined = joinedSlots.has(slot)
+            const playerName = players.find((p) => p.slot === slot)?.character_name
+            const qrUrl = host
+              ? `https://${host}/join/${session.join_token}?slot=${slot}`
+              : ''
+
+            return (
+              <div
+                key={slot}
+                className={`flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-colors ${
+                  joined
+                    ? 'border-amber-500 bg-amber-500/10'
+                    : 'border-gray-700 bg-gray-900'
+                }`}
+              >
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">
+                  Player {slot}
+                </p>
+
+                {qrUrl ? (
+                  <QRCodeImage url={qrUrl} size={140} />
+                ) : (
+                  <div className="w-[140px] h-[140px] rounded-lg bg-gray-800 animate-pulse" />
+                )}
+
+                <div className="text-center">
+                  {joined ? (
+                    <p className="text-amber-400 font-semibold text-sm">
+                      {playerName ?? 'Joined'}
+                    </p>
+                  ) : (
+                    <p className="text-gray-500 text-sm italic">Waiting...</p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="flex-shrink-0 px-6 py-5 bg-gray-900 border-t border-gray-800 flex items-center justify-between">
+        <p className="text-sm text-gray-500">
+          {joinedCount} / {session.player_count} players joined
+        </p>
+        <button
+          onClick={onStartAdventure}
+          disabled={joinedCount === 0}
+          className="px-8 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors shadow-lg"
+        >
+          Start Adventure
+        </button>
+      </footer>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Narration / DM Screen
+// ---------------------------------------------------------------------------
+
+function NarrationScreen({ session }: { session: SessionInfo }) {
   const [log, setLog] = useState<LogEntry[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -29,11 +288,13 @@ export default function DMScreen() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const sessionId = session.session_id
+
   // Load history on mount
   useEffect(() => {
     async function loadHistory() {
       try {
-        const res = await fetch(`/api/event-log?session_id=${encodeURIComponent(SESSION_ID)}`)
+        const res = await fetch(`/api/event-log?session_id=${encodeURIComponent(sessionId)}`)
         if (!res.ok) throw new Error('Failed to fetch history')
         const data: Array<{ player_input: string; ai_response: unknown; created_at: string }> =
           await res.json()
@@ -56,7 +317,7 @@ export default function DMScreen() {
     }
 
     loadHistory()
-  }, [])
+  }, [sessionId])
 
   // Auto-scroll to bottom whenever log changes
   useEffect(() => {
@@ -108,7 +369,7 @@ export default function DMScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           player_input: trimmed,
-          session_id: SESSION_ID,
+          session_id: sessionId,
           game_state: null,
         }),
       })
@@ -199,34 +460,13 @@ export default function DMScreen() {
 
   const isBusy = isStreaming || isTyping
 
-  async function handleRestart() {
-    if (!window.confirm('Start a new session? This will clear the current adventure.')) return
-    try {
-      await fetch('/api/restart', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: SESSION_ID }),
-      })
-    } catch (err) {
-      console.error('Failed to restart session:', err)
-    }
-    setLog([])
-  }
-
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-gray-100 font-serif overflow-hidden">
       {/* Header */}
       <header className="flex-shrink-0 px-6 py-3 bg-gray-900 border-b border-gray-800 shadow-md flex items-center justify-between">
         <h1 className="text-lg font-semibold tracking-wide text-amber-400">
-          The Wild Sheep Chase &mdash; DM Screen
+          {session.name} &mdash; DM Screen
         </h1>
-        <button
-          onClick={handleRestart}
-          disabled={isBusy}
-          className="text-xs text-gray-500 hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          New Session
-        </button>
       </header>
 
       {/* Narration log */}
@@ -246,12 +486,10 @@ export default function DMScreen() {
           const showCursor = isTyping && isLastEntry && !entry.error
           return (
             <div key={i} className="space-y-2">
-              {/* Player input */}
               <p className="text-gray-400 text-sm">
                 <span className="mr-2 text-gray-600">&gt;</span>
                 {entry.player_input}
               </p>
-              {/* AI narration or error */}
               {entry.error ? (
                 <p className="text-red-400 text-sm italic">{entry.error}</p>
               ) : (
@@ -266,7 +504,6 @@ export default function DMScreen() {
           )
         })}
 
-        {/* Thinking indicator — shown while SSE tokens are streaming in */}
         {isStreaming && (
           <div className="space-y-2">
             <p className="text-gray-400 text-sm">
@@ -308,4 +545,32 @@ export default function DMScreen() {
       </footer>
     </div>
   )
+}
+
+// ---------------------------------------------------------------------------
+// Root page — orchestrates screens
+// ---------------------------------------------------------------------------
+
+export default function DMScreen() {
+  const [screen, setScreen] = useState<AppScreen>('creation')
+  const [session, setSession] = useState<SessionInfo | null>(null)
+
+  function handleSessionCreated(info: SessionInfo) {
+    setSession(info)
+    setScreen('lobby')
+  }
+
+  function handleStartAdventure() {
+    setScreen('narration')
+  }
+
+  if (screen === 'creation' || !session) {
+    return <SessionCreationModal onCreated={handleSessionCreated} />
+  }
+
+  if (screen === 'lobby') {
+    return <LobbyScreen session={session} onStartAdventure={handleStartAdventure} />
+  }
+
+  return <NarrationScreen session={session} />
 }

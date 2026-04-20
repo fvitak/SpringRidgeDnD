@@ -3,6 +3,8 @@ import { NextRequest } from 'next/server'
 import { buildSystemPrompt } from '@/lib/prompts/wild-sheep-chase'
 import { parseDMResponse } from '@/lib/schemas/dm-response'
 import { getEventLog, appendEventLog } from '@/lib/db/event-log'
+import { getGameState } from '@/lib/db/game-state'
+import { applyStateChanges } from '@/lib/db/apply-state-changes'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -13,7 +15,6 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 interface DMActionRequest {
   player_input: string
   session_id: string
-  game_state?: unknown
   event_log_summary?: string
 }
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { player_input, session_id, game_state, event_log_summary } = body
+  const { player_input, session_id, event_log_summary } = body
 
   if (!player_input || typeof player_input !== 'string' || player_input.trim() === '') {
     return Response.json({ error: 'player_input is required and must be a non-empty string' }, { status: 400 })
@@ -40,7 +41,16 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'session_id is required' }, { status: 400 })
   }
 
-  // 2. Fetch last 6 event log entries for this session (3 full exchanges)
+  // 2. Load current game state for this session
+  let game_state: Awaited<ReturnType<typeof getGameState>> = null
+  try {
+    game_state = await getGameState(session_id)
+  } catch (err) {
+    // Non-fatal — proceed with null game state rather than failing the whole request
+    console.error('Failed to fetch game state:', err)
+  }
+
+  // 3. Fetch last 6 event log entries for this session (3 full exchanges)
   let eventLog: Awaited<ReturnType<typeof getEventLog>> = []
   try {
     const fullLog = await getEventLog(session_id)
@@ -50,7 +60,7 @@ export async function POST(req: NextRequest) {
     console.error('Failed to fetch event log:', err)
   }
 
-  // 3. Build the messages array
+  // 4. Build the messages array
   //    Interleave prior turns as user/assistant pairs so Claude has conversation context.
   const historyMessages: Anthropic.MessageParam[] = []
 
@@ -81,7 +91,7 @@ export async function POST(req: NextRequest) {
     },
   ]
 
-  // 4. Stream from Anthropic and return SSE response
+  // 5. Stream from Anthropic and return SSE response
   const encoder = new TextEncoder()
 
   const stream = new ReadableStream({
@@ -119,6 +129,14 @@ export async function POST(req: NextRequest) {
         try {
           const dmResponse = parseDMResponse(fullText)
           await appendEventLog(session_id, player_input.trim(), dmResponse)
+
+          // Apply state changes — non-fatal
+          try {
+            await applyStateChanges(session_id, dmResponse.state_changes)
+          } catch (err) {
+            console.error('Failed to apply state changes:', err)
+          }
+
           enqueue(JSON.stringify({ done: true, response: dmResponse }))
         } catch {
           enqueue(JSON.stringify({ error: 'Failed to parse AI response' }))

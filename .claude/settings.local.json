@@ -16,7 +16,10 @@
       "Bash(node -e \"require\\('./lib/prompts/wild-sheep-chase.ts'\\)\")",
       "Bash(python3 -c ' *)",
       "Bash(node -e ' *)",
-      "Bash(node)"
+      "Bash(node)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(mkdir -p \"/c/Users/fvita/OneDrive/Desktop/SpringRidgeDnD/app/api/sessions/[id]/players\")",
+      "Bash(mkdir -p \"/c/Users/fvita/OneDrive/Desktop/SpringRidgeDnD/app/join/[token]\")"
     ]
   }
 }
