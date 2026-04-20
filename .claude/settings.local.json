@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pandoc \"C:\\\\Users\\\\fvita\\\\OneDrive\\\\Desktop\\\\SpringRidgeDnD\\\\DnD_AI_DM_Roadmap_and_Backlog.docx\" -o /tmp/roadmap.md)",
+      "Read(//tmp/**)",
+      "Bash(python -c ' *)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir=false --import-alias \"@/*\" --yes)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir=false --import-alias \"@/*\" --yes --no-git)",
+      "Bash(npx create-next-app@latest _tmp_scaffold --typescript --tailwind --eslint --app --src-dir=false --import-alias \"@/*\" --yes)",
+      "Bash(npx create-next-app@latest tmp-scaffold --typescript --tailwind --eslint --app --src-dir=false --import-alias \"@/*\" --yes)",
+      "Bash(cmd /c \"rmdir /s /q \\\\\"C:\\\\Users\\\\fvita\\\\OneDrive\\\\Desktop\\\\SpringRidgeDnD\\\\tmp-scaffold\\\\\"\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(npm install *)",
+      "Bash(npm run *)"
+    ]
+  }
+}
