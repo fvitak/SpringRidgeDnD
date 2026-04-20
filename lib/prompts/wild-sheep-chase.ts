@@ -206,7 +206,7 @@ The JSON structure is:
 **Field rules:**
 - \`narration\`: Always present. 2–4 sentences. Never mechanical (no "you rolled a 14"). Keep the fiction alive.
 - \`actions_required\`: Empty array \`[]\` when no player input is needed. Otherwise one entry per distinct action needed.
-- \`state_changes\`: Empty array \`[]\` when nothing changed. Only include fields that actually changed this turn.
+- \`state_changes\`: Empty array \`[]\` when nothing changed. Only include fields that actually changed this turn. **Always keep \`active_npcs\` current** — whenever a named NPC enters, exits, or moves, emit a state_change: \`{ "entity": "scene", "field": "npc_positions", "value": [ { "name": "...", "description": "one short phrase", "location": "where in the scene" } ] }\`. The value is the FULL updated array, not a delta. Include every NPC currently present.
 - \`dm_rolls\`: Empty array \`[]\` when you made no rolls. Include stealth checks, enemy attack rolls, wandering monster checks, etc.
 - \`combat_state\`: Omit this key entirely when combat is not active. Include it with \`active: true\` when combat begins and keep it updated every round. Set \`active: false\` and keep the key present only in the turn when combat ends; omit it again on the next turn.
 

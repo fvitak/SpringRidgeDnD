@@ -81,15 +81,27 @@ function hpColor(hp: number, maxHp: number): string {
 // Party Sidebar
 // ---------------------------------------------------------------------------
 
-function PartySidebar({ sessionId }: { sessionId: string }) {
+interface SceneNPC {
+  name: string
+  description: string
+  location: string
+}
+
+function PartySidebar({ sessionId, onInsertName }: { sessionId: string; onInsertName: (name: string) => void }) {
   const [party, setParty] = useState<PartyMember[]>([])
+  const [npcs, setNpcs] = useState<SceneNPC[]>([])
 
   const fetchParty = useCallback(async () => {
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/party`)
-      if (!res.ok) return
-      const data: PartyMember[] = await res.json()
-      setParty(data)
+      const [partyRes, sceneRes] = await Promise.all([
+        fetch(`/api/sessions/${sessionId}/party`),
+        fetch(`/api/sessions/${sessionId}/scene`),
+      ])
+      if (partyRes.ok) setParty(await partyRes.json())
+      if (sceneRes.ok) {
+        const s = await sceneRes.json()
+        setNpcs(s.npcs ?? [])
+      }
     } catch {
       // silent — polling
     }
@@ -171,6 +183,34 @@ function PartySidebar({ sessionId }: { sessionId: string }) {
           </div>
         )
       })}
+      {/* NPCs in scene */}
+      {npcs.length > 0 && (
+        <>
+          <div className="border-t border-gray-800 pt-3 mt-1">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 px-1 mb-2">
+              In the Scene
+            </h2>
+            {npcs.map((npc) => (
+              <button
+                key={npc.name}
+                onClick={() => onInsertName(npc.name)}
+                className="w-full text-left px-2 py-2 rounded-lg hover:bg-gray-800 transition-colors group mb-1"
+                title={`Insert "${npc.name}" at cursor`}
+              >
+                <span className="text-sm font-medium text-gray-200 group-hover:text-amber-400 transition-colors block leading-tight">
+                  {npc.name}
+                </span>
+                {npc.description && (
+                  <span className="text-xs text-gray-500 block leading-tight">{npc.description}</span>
+                )}
+                {npc.location && (
+                  <span className="text-xs text-gray-600 block leading-tight italic">{npc.location}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </aside>
   )
 }
@@ -443,6 +483,19 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   }>({ interval: null, fullText: '' })
 
   const sessionId = session.session_id
+
+  function handleInsertName(name: string) {
+    const input = inputRef.current
+    if (!input) return
+    const start = input.selectionStart ?? input.value.length
+    const end = input.selectionEnd ?? input.value.length
+    const newValue = input.value.slice(0, start) + name + input.value.slice(end)
+    setInput(newValue)
+    setTimeout(() => {
+      input.setSelectionRange(start + name.length, start + name.length)
+      input.focus()
+    }, 0)
+  }
 
   // Fetch party data (for sidebar + character buttons)
   const fetchParty = useCallback(async () => {
@@ -738,7 +791,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
         </main>
 
         {/* UX-01: Party status sidebar — hidden on mobile */}
-        <PartySidebar sessionId={sessionId} />
+        <PartySidebar sessionId={sessionId} onInsertName={handleInsertName} />
       </div>
 
       {/* Fixed bottom input bar */}
