@@ -71,10 +71,9 @@ export async function POST(req: NextRequest) {
     })
     historyMessages.push({
       role: 'assistant',
-      content: (() => {
-        const r = entry.ai_response as { narration?: string } | null
-        return r?.narration ?? JSON.stringify(entry.ai_response)
-      })(),
+      content: entry.ai_response
+        ? JSON.stringify(entry.ai_response)
+        : '{"narration":"","actions_required":[],"state_changes":[],"dm_rolls":[]}',
     })
   }
 
@@ -138,7 +137,9 @@ export async function POST(req: NextRequest) {
           }
 
           enqueue(JSON.stringify({ done: true, response: dmResponse }))
-        } catch {
+        } catch (parseErr) {
+          console.error('Failed to parse AI response:', parseErr)
+          console.error('Raw AI output:', fullText.slice(0, 1000))
           enqueue(JSON.stringify({ error: 'Failed to parse AI response' }))
         }
       } catch (err) {
