@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, KeyboardEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, KeyboardEvent } from 'react'
 import QRCode from 'qrcode'
 
 // ---------------------------------------------------------------------------
@@ -34,6 +34,145 @@ interface LogEntry {
   narration: string
   error?: string
   isHistory?: boolean
+}
+
+interface PartyMember {
+  character_name: string
+  class: string
+  hp: number
+  max_hp: number
+  conditions: string[]
+  drinks_consumed: number
+  tolerance_threshold: number
+  slot: number
+}
+
+// ---------------------------------------------------------------------------
+// Intoxication helpers
+// ---------------------------------------------------------------------------
+
+type IntoxLevel = 'Buzzed' | 'Drunk' | 'Hammered' | null
+
+function getIntoxLevel(drinks: number, threshold: number): IntoxLevel {
+  if (drinks >= threshold * 3) return 'Hammered'
+  if (drinks >= threshold * 2) return 'Drunk'
+  if (drinks >= threshold) return 'Buzzed'
+  return null
+}
+
+const INTOX_ICON: Record<NonNullable<IntoxLevel>, string> = {
+  Buzzed: '🍺',
+  Drunk: '🍻',
+  Hammered: '💀',
+}
+
+// ---------------------------------------------------------------------------
+// HP bar color helper
+// ---------------------------------------------------------------------------
+
+function hpColor(hp: number, maxHp: number): string {
+  const pct = maxHp > 0 ? hp / maxHp : 0
+  if (pct > 0.5) return 'bg-green-500'
+  if (pct > 0.25) return 'bg-yellow-400'
+  return 'bg-red-500'
+}
+
+// ---------------------------------------------------------------------------
+// Party Sidebar
+// ---------------------------------------------------------------------------
+
+function PartySidebar({ sessionId }: { sessionId: string }) {
+  const [party, setParty] = useState<PartyMember[]>([])
+
+  const fetchParty = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/party`)
+      if (!res.ok) return
+      const data: PartyMember[] = await res.json()
+      setParty(data)
+    } catch {
+      // silent — polling
+    }
+  }, [sessionId])
+
+  useEffect(() => {
+    fetchParty()
+    const interval = setInterval(fetchParty, 5000)
+    return () => clearInterval(interval)
+  }, [fetchParty])
+
+  return (
+    <aside className="hidden md:flex w-56 flex-shrink-0 flex-col gap-3 bg-gray-900 border-l border-gray-800 px-3 py-4 overflow-y-auto">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 px-1">
+        Party
+      </h2>
+
+      {party.length === 0 && (
+        <p className="text-gray-600 text-xs italic px-1">No characters yet</p>
+      )}
+
+      {party.map((member) => {
+        const intox = getIntoxLevel(member.drinks_consumed, member.tolerance_threshold)
+        const hpPct = member.max_hp > 0 ? (member.hp / member.max_hp) * 100 : 0
+
+        return (
+          <div
+            key={member.slot}
+            className="bg-gray-800 rounded-xl p-3 space-y-2 border border-gray-700"
+          >
+            {/* Name + intox */}
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-sm font-semibold text-gray-100 truncate leading-tight">
+                {member.character_name}
+              </span>
+              {intox && (
+                <span
+                  className="text-sm leading-none flex-shrink-0"
+                  title={intox}
+                  aria-label={intox}
+                >
+                  {INTOX_ICON[intox]}
+                </span>
+              )}
+            </div>
+
+            {/* Class */}
+            <p className="text-xs text-gray-400 capitalize">{member.class}</p>
+
+            {/* HP bar */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-500">HP</span>
+                <span className="text-xs text-gray-400">
+                  {member.hp}/{member.max_hp}
+                </span>
+              </div>
+              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${hpColor(member.hp, member.max_hp)}`}
+                  style={{ width: `${Math.max(0, Math.min(100, hpPct))}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Condition badges */}
+            {member.conditions && member.conditions.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {member.conditions.map((cond) => (
+                  <span
+                    key={cond}
+                    className="text-xs bg-purple-900/60 text-purple-300 border border-purple-700 rounded px-1.5 py-0.5"
+                  >
+                    {cond}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </aside>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -285,10 +424,35 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const [isTyping, setIsTyping] = useState(false)
   const [currentInput, setCurrentInput] = useState('')
   const [loadingHistory, setLoadingHistory] = useState(true)
+  const [party, setParty] = useState<PartyMember[]>([])
+  const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Ref for typewriter so the keydown handler can skip it
+  const typewriterRef = useRef<{
+    interval: ReturnType<typeof setInterval> | null
+    fullText: string
+  }>({ interval: null, fullText: '' })
 
   const sessionId = session.session_id
+
+  // Fetch party data (for sidebar + character buttons)
+  const fetchParty = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/party`)
+      if (!res.ok) return
+      const data: PartyMember[] = await res.json()
+      setParty(data)
+    } catch {
+      // silent — polling
+    }
+  }, [sessionId])
+
+  useEffect(() => {
+    fetchParty()
+    const interval = setInterval(fetchParty, 5000)
+    return () => clearInterval(interval)
+  }, [fetchParty])
 
   // Load history on mount
   useEffect(() => {
@@ -324,12 +488,44 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [log])
 
+  // UX-03: Typewriter skip on Space/Enter while typing
+  useEffect(() => {
+    if (!isTyping) return
+
+    function handleSkip(e: globalThis.KeyboardEvent) {
+      if (e.key !== ' ' && e.key !== 'Enter') return
+      // Only skip if not focused on the input field
+      if (document.activeElement === inputRef.current) return
+      e.preventDefault()
+
+      const { interval, fullText } = typewriterRef.current
+      if (interval !== null) {
+        clearInterval(interval)
+        typewriterRef.current.interval = null
+      }
+      // Instantly complete the narration
+      setLog((prev) => {
+        const updated = [...prev]
+        const last = updated[updated.length - 1]
+        if (last && !last.error) {
+          updated[updated.length - 1] = { ...last, narration: fullText }
+        }
+        return updated
+      })
+      setIsTyping(false)
+    }
+
+    document.addEventListener('keydown', handleSkip)
+    return () => document.removeEventListener('keydown', handleSkip)
+  }, [isTyping])
+
   function startTypewriter(narration: string) {
     if (!narration) {
       setIsTyping(false)
       return
     }
 
+    typewriterRef.current.fullText = narration
     let index = 0
     setIsTyping(true)
 
@@ -350,25 +546,33 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
 
       if (index >= narration.length) {
         clearInterval(interval)
+        typewriterRef.current.interval = null
         setIsTyping(false)
       }
     }, 20)
+
+    typewriterRef.current.interval = interval
   }
 
   async function handleSubmit() {
     const trimmed = input.trim()
     if (!trimmed || isStreaming || isTyping) return
 
+    // UX-02: Prepend selected character name if any
+    const effectiveInput = selectedCharacter
+      ? `[${selectedCharacter}]: ${trimmed}`
+      : trimmed
+
     setInput('')
     setIsStreaming(true)
-    setCurrentInput(trimmed)
+    setCurrentInput(effectiveInput)
 
     try {
       const response = await fetch('/api/dm-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          player_input: trimmed,
+          player_input: effectiveInput,
           session_id: sessionId,
           game_state: null,
         }),
@@ -409,7 +613,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
             const narration = parsed.response.narration
             setLog((prev) => [
               ...prev,
-              { player_input: trimmed, narration: '' },
+              { player_input: effectiveInput, narration: '' },
             ])
             setIsStreaming(false)
             setCurrentInput('')
@@ -417,7 +621,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
           } else if (parsed.error) {
             setLog((prev) => [
               ...prev,
-              { player_input: trimmed, narration: '', error: parsed.error },
+              { player_input: effectiveInput, narration: '', error: parsed.error },
             ])
             setIsStreaming(false)
             setCurrentInput('')
@@ -430,7 +634,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
         if (stillStreaming) {
           setLog((prev) => [
             ...prev,
-            { player_input: trimmed, narration: '' },
+            { player_input: effectiveInput, narration: '' },
           ])
           setCurrentInput('')
           return false
@@ -442,7 +646,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
       setLog((prev) => [
         ...prev,
         {
-          player_input: trimmed,
+          player_input: effectiveInput,
           narration: '',
           error: 'Connection error. Please try again.',
         },
@@ -469,61 +673,91 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
         </h1>
       </header>
 
-      {/* Narration log */}
-      <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-        {loadingHistory && (
-          <p className="text-gray-500 text-sm italic">Loading session history...</p>
-        )}
+      {/* Main content: narration + sidebar */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Narration log — flex-1 fills remaining width */}
+        <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+          {loadingHistory && (
+            <p className="text-gray-500 text-sm italic">Loading session history...</p>
+          )}
 
-        {!loadingHistory && log.length === 0 && !isBusy && (
-          <p className="text-gray-600 text-sm italic">
-            The adventure awaits. What do you do?
-          </p>
-        )}
+          {!loadingHistory && log.length === 0 && !isBusy && (
+            <p className="text-gray-600 text-sm italic">
+              The adventure awaits. What do you do?
+            </p>
+          )}
 
-        {log.map((entry, i) => {
-          const isLastEntry = i === log.length - 1
-          const showCursor = isTyping && isLastEntry && !entry.error
-          return (
-            <div key={i} className="space-y-2">
+          {log.map((entry, i) => {
+            const isLastEntry = i === log.length - 1
+            const showCursor = isTyping && isLastEntry && !entry.error
+            return (
+              <div key={i} className="space-y-2">
+                <p className="text-gray-400 text-sm">
+                  <span className="mr-2 text-gray-600">&gt;</span>
+                  {entry.player_input}
+                </p>
+                {entry.error ? (
+                  <p className="text-red-400 text-sm italic">{entry.error}</p>
+                ) : (
+                  // UX-03: text-lg for better group readability
+                  <p className="text-gray-100 text-lg leading-relaxed whitespace-pre-wrap">
+                    {entry.narration}
+                    {showCursor && (
+                      <span className="inline-block w-2 h-5 bg-amber-400 ml-1 animate-pulse align-middle" />
+                    )}
+                  </p>
+                )}
+              </div>
+            )
+          })}
+
+          {isStreaming && (
+            <div className="space-y-2">
               <p className="text-gray-400 text-sm">
                 <span className="mr-2 text-gray-600">&gt;</span>
-                {entry.player_input}
+                {currentInput}
               </p>
-              {entry.error ? (
-                <p className="text-red-400 text-sm italic">{entry.error}</p>
-              ) : (
-                <p className="text-gray-100 leading-relaxed whitespace-pre-wrap">
-                  {entry.narration}
-                  {showCursor && (
-                    <span className="inline-block w-2 h-4 bg-amber-400 ml-1 animate-pulse align-middle" />
-                  )}
-                </p>
-              )}
+              <div className="flex items-center gap-1 text-amber-500 text-sm italic">
+                <span>The DM is thinking</span>
+                <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
+                <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
+                <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
+              </div>
             </div>
-          )
-        })}
+          )}
 
-        {isStreaming && (
-          <div className="space-y-2">
-            <p className="text-gray-400 text-sm">
-              <span className="mr-2 text-gray-600">&gt;</span>
-              {currentInput}
-            </p>
-            <div className="flex items-center gap-1 text-amber-500 text-sm italic">
-              <span>The DM is thinking</span>
-              <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
-              <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
-              <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
-            </div>
-          </div>
-        )}
+          <div ref={bottomRef} />
+        </main>
 
-        <div ref={bottomRef} />
-      </main>
+        {/* UX-01: Party status sidebar — hidden on mobile */}
+        <PartySidebar sessionId={sessionId} />
+      </div>
 
       {/* Fixed bottom input bar */}
       <footer className="flex-shrink-0 px-6 py-4 bg-gray-900 border-t border-gray-800">
+        {/* UX-02: Character selector row */}
+        {party.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3 max-w-4xl mx-auto">
+            {party.map((member) => (
+              <button
+                key={member.slot}
+                onClick={() =>
+                  setSelectedCharacter(
+                    selectedCharacter === member.character_name ? null : member.character_name
+                  )
+                }
+                className={`text-xs px-2 py-1 rounded transition-colors border ${
+                  selectedCharacter === member.character_name
+                    ? 'bg-amber-500 border-amber-400 text-gray-900 font-semibold'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200'
+                }`}
+              >
+                {member.character_name}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex gap-3 max-w-4xl mx-auto">
           <input
             ref={inputRef}
