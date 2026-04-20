@@ -21,12 +21,33 @@ interface PlayerSlot {
   character_name: string | null
 }
 
+interface ActionRequired {
+  type: 'roll' | 'choice' | 'confirm'
+  player?: string
+  description: string
+}
+
+interface CombatantEntry {
+  name: string
+  initiative: number
+  hp: number
+  max_hp: number
+  is_player: boolean
+  conditions?: string[]
+}
+
+interface CombatState {
+  active: boolean
+  round?: number
+  initiative?: CombatantEntry[]
+}
+
 interface DMResponse {
   narration: string
-  actions_required?: unknown
-  state_changes?: unknown
-  dm_rolls?: unknown
-  combat_state?: unknown
+  actions_required?: ActionRequired[]
+  state_changes?: unknown[]
+  dm_rolls?: unknown[]
+  combat_state?: CombatState
 }
 
 interface LogEntry {
@@ -88,7 +109,15 @@ interface SceneNPC {
   location: string
 }
 
-function PartySidebar({ sessionId, onInsertName }: { sessionId: string; onInsertName: (name: string) => void }) {
+function PartySidebar({
+  sessionId,
+  onInsertName,
+  combatState,
+}: {
+  sessionId: string
+  onInsertName: (name: string) => void
+  combatState: CombatState | null
+}) {
   const [party, setParty] = useState<PartyMember[]>([])
   const [npcs, setNpcs] = useState<SceneNPC[]>([])
 
@@ -116,6 +145,11 @@ function PartySidebar({ sessionId, onInsertName }: { sessionId: string; onInsert
 
   return (
     <aside className="hidden md:flex w-56 flex-shrink-0 flex-col gap-3 bg-gray-900 border-l border-gray-800 px-3 py-4 overflow-y-auto">
+      {/* Initiative tracker — shown above party during active combat */}
+      {combatState?.active && (combatState.initiative?.length ?? 0) > 0 && (
+        <InitiativeTracker combatState={combatState} />
+      )}
+
       <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 px-1">
         Party
       </h2>
@@ -470,6 +504,184 @@ function LobbyScreen({
 }
 
 // ---------------------------------------------------------------------------
+// Initiative Tracker
+// ---------------------------------------------------------------------------
+
+function InitiativeTracker({ combatState }: { combatState: CombatState }) {
+  const combatants = combatState.initiative ?? []
+
+  return (
+    <div className="mb-3">
+      <div className="flex items-center justify-between px-1 mb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-red-400">
+          ⚔ Combat
+        </h2>
+        {combatState.round !== undefined && (
+          <span className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-700 rounded px-1.5 py-0.5">
+            Round {combatState.round}
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-1">
+        {combatants.map((c, idx) => {
+          const hpPct = c.max_hp > 0 ? (c.hp / c.max_hp) * 100 : 0
+          const isActive = idx === 0
+          return (
+            <div
+              key={`${c.name}-${idx}`}
+              className={`rounded-lg p-2 border transition-colors ${
+                isActive
+                  ? 'bg-amber-500/10 border-amber-600'
+                  : 'bg-gray-800 border-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-xs" title={c.is_player ? 'Player' : 'NPC'}>
+                  {c.is_player ? '🛡' : '⚔'}
+                </span>
+                <span
+                  className={`text-xs font-semibold truncate flex-1 ${
+                    isActive ? 'text-amber-300' : 'text-gray-200'
+                  }`}
+                >
+                  {c.name}
+                </span>
+                <span className="text-xs text-gray-500 flex-shrink-0">
+                  {c.initiative}
+                </span>
+              </div>
+
+              {/* HP bar */}
+              <div>
+                <div className="flex justify-between mb-0.5">
+                  <span className="text-xs text-gray-500">HP</span>
+                  <span className="text-xs text-gray-400">
+                    {c.hp}/{c.max_hp}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${hpColor(c.hp, c.max_hp)}`}
+                    style={{ width: `${Math.max(0, Math.min(100, hpPct))}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Conditions */}
+              {c.conditions && c.conditions.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {c.conditions.map((cond) => (
+                    <span
+                      key={cond}
+                      className="text-xs bg-purple-900/60 text-purple-300 border border-purple-700 rounded px-1 py-0.5 leading-none"
+                    >
+                      {cond}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Roll Prompt Modal
+// ---------------------------------------------------------------------------
+
+function RollPromptModal({
+  action,
+  onSubmit,
+  onDismiss,
+}: {
+  action: ActionRequired
+  onSubmit: (result: number) => void
+  onDismiss: () => void
+}) {
+  const [value, setValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const numVal = Number(value)
+  const isValid = value.trim() !== '' && Number.isInteger(numVal) && numVal >= 1 && numVal <= 30
+
+  function handleSubmitClick() {
+    if (!isValid) return
+    onSubmit(numVal)
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' && isValid) onSubmit(numVal)
+    if (e.key === 'Escape') onDismiss()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-amber-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        {/* Header */}
+        <div className="text-center">
+          <p className="text-3xl mb-1">🎲</p>
+          <h2 className="text-xl font-bold text-amber-400 tracking-wide uppercase">
+            Roll Check!
+          </h2>
+        </div>
+
+        {/* Player name */}
+        {action.player && (
+          <p className="text-center text-sm font-semibold text-gray-300">
+            {action.player}
+          </p>
+        )}
+
+        {/* Description */}
+        <p className="text-gray-200 text-sm text-center leading-relaxed">
+          {action.description}
+        </p>
+
+        {/* Number input */}
+        <input
+          ref={inputRef}
+          type="number"
+          min={1}
+          max={30}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="1–30"
+          className="w-full bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-3 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+        />
+
+        {/* Submit button */}
+        <button
+          onClick={handleSubmitClick}
+          disabled={!isValid}
+          className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl transition-colors shadow-lg"
+        >
+          Submit Roll
+        </button>
+
+        {/* Dismiss link */}
+        <div className="text-center">
+          <button
+            onClick={onDismiss}
+            className="text-xs text-gray-500 hover:text-gray-300 transition-colors underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Narration / DM Screen
 // ---------------------------------------------------------------------------
 
@@ -482,6 +694,9 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [party, setParty] = useState<PartyMember[]>([])
   const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null)
+  const [combatState, setCombatState] = useState<CombatState | null>(null)
+  const [pendingRoll, setPendingRoll] = useState<ActionRequired | null>(null)
+  const [rollInput, setRollInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   // Ref for typewriter so the keydown handler can skip it
@@ -694,6 +909,15 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
             ])
             setIsStreaming(false)
             setCurrentInput('')
+            // Extract and set combat state
+            if (parsed.response.combat_state !== undefined) {
+              setCombatState(
+                parsed.response.combat_state.active ? parsed.response.combat_state : null
+              )
+            }
+            // Check for a roll action
+            const rollAction = parsed.response.actions_required?.find((a) => a.type === 'roll')
+            if (rollAction) setPendingRoll(rollAction)
             startTypewriter(narration)
           } else if (parsed.error) {
             setLog((prev) => [
@@ -807,8 +1031,25 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
         </main>
 
         {/* UX-01: Party status sidebar — hidden on mobile */}
-        <PartySidebar sessionId={sessionId} onInsertName={handleInsertName} />
+        <PartySidebar sessionId={sessionId} onInsertName={handleInsertName} combatState={combatState} />
       </div>
+
+      {/* Roll prompt modal */}
+      {pendingRoll && (
+        <RollPromptModal
+          action={pendingRoll}
+          onSubmit={(result) => {
+            const formatted = `[${pendingRoll.player ?? 'Party'}] rolled ${result} — ${pendingRoll.description}`
+            setPendingRoll(null)
+            setRollInput('')
+            handleSubmit(formatted)
+          }}
+          onDismiss={() => {
+            setPendingRoll(null)
+            setRollInput('')
+          }}
+        />
+      )}
 
       {/* Fixed bottom input bar */}
       <footer className="flex-shrink-0 px-6 py-4 bg-gray-900 border-t border-gray-800">

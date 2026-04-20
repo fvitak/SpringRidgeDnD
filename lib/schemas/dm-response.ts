@@ -13,7 +13,7 @@ const actionRequiredSchema = z.object({
 const stateChangeSchema = z.object({
   entity: z.string(),
   field: z.union([
-    z.enum(["hp", "condition", "inventory", "position", "spell_slots"]),
+    z.enum(["hp", "condition", "inventory", "position", "spell_slots", "drinks_consumed"]),
     z.string(), // fallback for extensibility
   ]),
   value: z.unknown(),
@@ -49,6 +49,12 @@ export const dmResponseSchema = z.object({
   state_changes: z.array(stateChangeSchema).default([]),
   dm_rolls: z.array(dmRollSchema).default([]),
   combat_state: combatStateSchema.optional(),
+  pending_roll: z.object({
+    player: z.string(),
+    type: z.string(),
+    dc: z.number().optional(),
+    description: z.string().optional(),
+  }).optional(),
 });
 
 // ---------------------------------------------------------------------------

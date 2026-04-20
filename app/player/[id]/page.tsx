@@ -41,6 +41,9 @@ interface Character {
   conditions: string[]
   drinks_consumed: number
   personality_traits: string[]
+  death_saves_successes: number
+  death_saves_failures: number
+  is_stable: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +77,12 @@ const CLASS_SAVING_THROWS: Record<string, string[]> = {
 }
 
 const SPELLCASTER_CLASSES = ['wizard', 'cleric']
+
+// Maximum spell slots per class per spell level (level-1 characters only for now)
+const MAX_SPELL_SLOTS: Record<string, Record<string, number>> = {
+  wizard: { '1': 2 },
+  cleric: { '1': 2 },
+}
 
 function formatMod(score: number): string {
   const mod = Math.floor((score - 10) / 2)
@@ -226,8 +235,8 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   }
   const proficientSkillSet = new Set(CLASS_SKILLS[character.class] ?? [])
 
-  // Spell slots: { "1": totalSlots } — we don't track "used" vs "remaining" yet,
-  // so we show them all as filled pips until the DM updates the value.
+  // Spell slots: { "1": remainingSlots } — the AI decrements these via state_changes
+  // when spells are cast. We compare against MAX_SPELL_SLOTS to show spent (empty) pips.
   const spellSlotEntries = Object.entries(character.spell_slots).sort(
     ([a], [b]) => Number(a) - Number(b)
   )
@@ -275,6 +284,59 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
             />
           </div>
         </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* 2b. Death saving throws (only when HP = 0 and not stable)          */}
+        {/* ---------------------------------------------------------------- */}
+        {character.hp === 0 && !character.is_stable && (
+          <section className="bg-gray-900 rounded-2xl p-4 border-2 border-red-700">
+            <p className="text-xs font-semibold uppercase tracking-widest text-red-400 mb-3">
+              Death Saving Throws
+            </p>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 w-20">Successes</span>
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-sm
+                      ${i < character.death_saves_successes
+                        ? 'bg-green-500 border-green-400 text-white'
+                        : 'border-gray-600 text-transparent'}`}
+                  >
+                    ✓
+                  </span>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 w-20">Failures</span>
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-sm
+                      ${i < character.death_saves_failures
+                        ? 'bg-red-600 border-red-500 text-white'
+                        : 'border-gray-600 text-transparent'}`}
+                  >
+                    ✕
+                  </span>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 italic mt-3">
+              Roll d20 at start of your turn. 10+ is a success.
+            </p>
+          </section>
+        )}
+
+        {/* Show STABLE badge when hp=0 but character is stable */}
+        {character.hp === 0 && character.is_stable && (
+          <section className="bg-gray-900 rounded-2xl p-4 border-2 border-green-700 flex items-center justify-center">
+            <span className="text-base font-bold uppercase tracking-widest text-green-400 px-4 py-1 rounded-full bg-green-900/50 border border-green-600">
+              Stable
+            </span>
+          </section>
+        )}
 
         {/* ---------------------------------------------------------------- */}
         {/* 3. Core stats row (3×2 grid)                                       */}
@@ -441,22 +503,31 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
             </p>
             <div className="space-y-3">
               {spellSlotEntries.map(([level, slots]) => {
-                const total = Number(slots)
+                const remaining = Number(slots)
+                const maxSlots = MAX_SPELL_SLOTS[character.class]?.[level] ?? remaining
+                const spent = maxSlots - remaining
                 return (
                   <div key={level} className="flex items-center gap-3">
                     <span className="text-sm text-gray-300 w-16 flex-shrink-0">
                       Level {level}
                     </span>
                     <div className="flex gap-1.5">
-                      {Array.from({ length: total }).map((_, i) => (
+                      {Array.from({ length: remaining }).map((_, i) => (
                         <span
-                          key={i}
+                          key={`filled-${i}`}
                           className="w-5 h-5 rounded-full bg-violet-500 border border-violet-400 inline-block"
-                          title={`Slot ${i + 1}`}
+                          title={`Slot ${i + 1} (available)`}
+                        />
+                      ))}
+                      {Array.from({ length: spent }).map((_, i) => (
+                        <span
+                          key={`empty-${i}`}
+                          className="w-5 h-5 rounded-full bg-gray-700 border border-gray-600 inline-block"
+                          title={`Slot ${remaining + i + 1} (spent)`}
                         />
                       ))}
                     </div>
-                    <span className="text-xs text-gray-500 ml-auto">{total}/{total}</span>
+                    <span className="text-xs text-gray-500 ml-auto">{remaining}/{maxSlots}</span>
                   </div>
                 )
               })}

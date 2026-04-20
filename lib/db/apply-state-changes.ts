@@ -5,7 +5,13 @@ import { upsertGameState } from '@/lib/db/game-state'
 // Field routing constants
 // ---------------------------------------------------------------------------
 
-const GAME_STATE_FIELDS = new Set(['scene', 'npc_positions', 'narrative_context'])
+const GAME_STATE_FIELDS = new Set([
+  'scene',
+  'npc_positions',
+  'narrative_context',
+  'combat_state',
+  'pending_roll',
+])
 
 const CHARACTER_FIELDS = new Set([
   'hp',
@@ -14,6 +20,13 @@ const CHARACTER_FIELDS = new Set([
   'spell_slots',
   'drinks_consumed',
   'position',
+  'death_saves_successes',
+  'death_saves_failures',
+  'is_stable',
+  'action_used',
+  'bonus_action_used',
+  'reaction_used',
+  'concentration',
 ])
 
 // ---------------------------------------------------------------------------
