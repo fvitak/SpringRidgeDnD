@@ -23,7 +23,7 @@ export default function DMScreen() {
   const [log, setLog] = useState<LogEntry[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [streamingText, setStreamingText] = useState('')
+  const [isTyping, setIsTyping] = useState(false)
   const [currentInput, setCurrentInput] = useState('')
   const [loadingHistory, setLoadingHistory] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -57,18 +57,48 @@ export default function DMScreen() {
     loadHistory()
   }, [])
 
-  // Auto-scroll to bottom whenever log or streaming text changes
+  // Auto-scroll to bottom whenever log changes
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [log, streamingText])
+  }, [log])
+
+  function startTypewriter(narration: string) {
+    if (!narration) {
+      setIsTyping(false)
+      return
+    }
+
+    let index = 0
+    setIsTyping(true)
+
+    const interval = setInterval(() => {
+      index += 1
+      setLog((prev) => {
+        const updated = [...prev]
+        const last = updated[updated.length - 1]
+        if (last) {
+          updated[updated.length - 1] = {
+            ...last,
+            narration: narration.slice(0, index),
+          }
+        }
+        return updated
+      })
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+
+      if (index >= narration.length) {
+        clearInterval(interval)
+        setIsTyping(false)
+      }
+    }, 20)
+  }
 
   async function handleSubmit() {
     const trimmed = input.trim()
-    if (!trimmed || isStreaming) return
+    if (!trimmed || isStreaming || isTyping) return
 
     setInput('')
     setIsStreaming(true)
-    setStreamingText('')
     setCurrentInput(trimmed)
 
     try {
@@ -112,36 +142,34 @@ export default function DMScreen() {
           }
 
           if (parsed.token !== undefined) {
-            setStreamingText((prev) => prev + parsed.token)
+            // Silently discard tokens — show only the thinking indicator while streaming
           } else if (parsed.done && parsed.response) {
             const narration = parsed.response.narration
             setLog((prev) => [
               ...prev,
-              { player_input: trimmed, narration },
+              { player_input: trimmed, narration: '' },
             ])
-            setStreamingText('')
             setIsStreaming(false)
             setCurrentInput('')
+            startTypewriter(narration)
           } else if (parsed.error) {
             setLog((prev) => [
               ...prev,
               { player_input: trimmed, narration: '', error: parsed.error },
             ])
-            setStreamingText('')
             setIsStreaming(false)
             setCurrentInput('')
           }
         }
       }
 
-      // If stream ended without a done event, finalize with whatever we streamed
+      // If stream ended without a done event, finalize with an empty narration
       setIsStreaming((stillStreaming) => {
         if (stillStreaming) {
           setLog((prev) => [
             ...prev,
             { player_input: trimmed, narration: '' },
           ])
-          setStreamingText('')
           setCurrentInput('')
           return false
         }
@@ -157,7 +185,6 @@ export default function DMScreen() {
           error: 'Connection error. Please try again.',
         },
       ])
-      setStreamingText('')
       setIsStreaming(false)
       setCurrentInput('')
     }
@@ -168,6 +195,8 @@ export default function DMScreen() {
       handleSubmit()
     }
   }
+
+  const isBusy = isStreaming || isTyping
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-gray-100 font-serif overflow-hidden">
@@ -184,50 +213,50 @@ export default function DMScreen() {
           <p className="text-gray-500 text-sm italic">Loading session history...</p>
         )}
 
-        {!loadingHistory && log.length === 0 && !isStreaming && (
+        {!loadingHistory && log.length === 0 && !isBusy && (
           <p className="text-gray-600 text-sm italic">
             The adventure awaits. What do you do?
           </p>
         )}
 
-        {log.map((entry, i) => (
-          <div key={i} className="space-y-2">
-            {/* Player input */}
-            <p className="text-gray-400 text-sm">
-              <span className="mr-2 text-gray-600">&gt;</span>
-              {entry.player_input}
-            </p>
-            {/* AI narration or error */}
-            {entry.error ? (
-              <p className="text-red-400 text-sm italic">{entry.error}</p>
-            ) : (
-              <p className="text-gray-100 leading-relaxed whitespace-pre-wrap">
-                {entry.narration}
+        {log.map((entry, i) => {
+          const isLastEntry = i === log.length - 1
+          const showCursor = isTyping && isLastEntry && !entry.error
+          return (
+            <div key={i} className="space-y-2">
+              {/* Player input */}
+              <p className="text-gray-400 text-sm">
+                <span className="mr-2 text-gray-600">&gt;</span>
+                {entry.player_input}
               </p>
-            )}
-          </div>
-        ))}
+              {/* AI narration or error */}
+              {entry.error ? (
+                <p className="text-red-400 text-sm italic">{entry.error}</p>
+              ) : (
+                <p className="text-gray-100 leading-relaxed whitespace-pre-wrap">
+                  {entry.narration}
+                  {showCursor && (
+                    <span className="inline-block w-2 h-4 bg-amber-400 ml-1 animate-pulse align-middle" />
+                  )}
+                </p>
+              )}
+            </div>
+          )
+        })}
 
-        {/* Streaming entry */}
+        {/* Thinking indicator — shown while SSE tokens are streaming in */}
         {isStreaming && (
           <div className="space-y-2">
             <p className="text-gray-400 text-sm">
               <span className="mr-2 text-gray-600">&gt;</span>
               {currentInput}
             </p>
-            {streamingText ? (
-              <p className="text-gray-100 leading-relaxed whitespace-pre-wrap">
-                {streamingText}
-                <span className="inline-block w-2 h-4 bg-amber-400 ml-1 animate-pulse align-middle" />
-              </p>
-            ) : (
-              <div className="flex items-center gap-1 text-amber-500 text-sm italic">
-                <span>The DM is thinking</span>
-                <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
-                <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
-                <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
-              </div>
-            )}
+            <div className="flex items-center gap-1 text-amber-500 text-sm italic">
+              <span>The DM is thinking</span>
+              <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
+              <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
+              <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
+            </div>
           </div>
         )}
 
@@ -242,13 +271,13 @@ export default function DMScreen() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={isStreaming}
+            disabled={isBusy}
             placeholder="What do you do?"
             className="flex-1 bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <button
             onClick={handleSubmit}
-            disabled={isStreaming || input.trim() === ''}
+            disabled={isBusy || input.trim() === ''}
             className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Send
