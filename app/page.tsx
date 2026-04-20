@@ -223,8 +223,8 @@ function PartySidebar({
           </div>
         )
       })}
-      {/* NPCs in scene */}
-      {npcs.length > 0 && (
+      {/* NPCs in scene — hidden during active combat */}
+      {!combatState?.active && npcs.length > 0 && (
         <>
           <div className="border-t border-gray-800 pt-3 mt-1">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 px-1 mb-2">
@@ -697,6 +697,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const [combatState, setCombatState] = useState<CombatState | null>(null)
   const [pendingRoll, setPendingRoll] = useState<ActionRequired | null>(null)
   const [rollInput, setRollInput] = useState('')
+  const [restartKey, setRestartKey] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   // Ref for typewriter so the keydown handler can skip it
@@ -773,7 +774,15 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     if (session.name !== 'Random Encounter') return
     if (log.length > 0 || isStreaming || isTyping) return
     handleSubmit('[DM]: Combat test mode. Invent a party of 4 adventurers — give them names and classes (Fighter, Rogue, Cleric, Wizard). They are ambushed on a forest road by 3 bandits and a bandit captain. Roll initiative for all enemies. Request initiative rolls from each player character. Begin combat.')
-  }, [loadingHistory]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadingHistory, restartKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-start Wild Sheep Chase intro
+  useEffect(() => {
+    if (loadingHistory) return
+    if (session.name !== 'Wild Sheep Chase') return
+    if (log.length > 0 || isStreaming || isTyping) return
+    handleSubmit('[DM]: Begin the adventure. Set the scene at The Wooly Flagon tavern in Millhaven.')
+  }, [loadingHistory, restartKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom whenever log changes
   useEffect(() => {
@@ -957,6 +966,12 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     }
   }
 
+  const handleRestart = useCallback(() => {
+    setLog([])
+    setCombatState(null)
+    setRestartKey(k => k + 1)
+  }, [])
+
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       handleSubmit()
@@ -969,9 +984,19 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     <div className="flex flex-col h-screen bg-gray-950 text-gray-100 font-serif overflow-hidden">
       {/* Header */}
       <header className="flex-shrink-0 px-6 py-3 bg-gray-900 border-b border-gray-800 shadow-md flex items-center justify-between">
-        <h1 className="text-lg font-semibold tracking-wide text-amber-400">
-          {session.name} &mdash; DM Screen
-        </h1>
+        <div className="flex items-center">
+          <h1 className="text-lg font-semibold tracking-wide text-amber-400">
+            {session.name} &mdash; DM Screen
+          </h1>
+          {session.name === 'Random Encounter' && (
+            <button
+              onClick={handleRestart}
+              className="text-xs text-gray-400 hover:text-gray-200 border border-gray-600 rounded px-2 py-0.5 ml-2"
+            >
+              ↺ Restart
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Main content: narration + sidebar */}
@@ -1059,11 +1084,12 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
             {party.map((member) => (
               <button
                 key={member.slot}
-                onClick={() =>
+                onClick={() => {
                   setSelectedCharacter(
                     selectedCharacter === member.character_name ? null : member.character_name
                   )
-                }
+                  setTimeout(() => inputRef.current?.focus(), 0)
+                }}
                 className={`text-xs px-2 py-1 rounded transition-colors border ${
                   selectedCharacter === member.character_name
                     ? 'bg-amber-500 border-amber-400 text-gray-900 font-semibold'
