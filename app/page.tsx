@@ -90,7 +90,6 @@ export default function DMScreen() {
       if (index >= narration.length) {
         clearInterval(interval)
         setIsTyping(false)
-        inputRef.current?.focus()
       }
     }, 20)
   }
@@ -274,9 +273,8 @@ export default function DMScreen() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={isBusy}
-            placeholder="What do you do?"
-            className="flex-1 bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+            placeholder={isBusy ? 'The DM is speaking...' : 'What do you do?'}
+            className="flex-1 bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
           />
           <button
             onClick={handleSubmit}
