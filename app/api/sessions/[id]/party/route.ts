@@ -10,6 +10,7 @@ export interface PartyMember {
   drinks_consumed: number
   tolerance_threshold: number
   slot: number
+  position: string | null
 }
 
 export async function GET(
@@ -26,7 +27,7 @@ export async function GET(
     const supabase = getSupabase()
     const { data, error } = await supabase
       .from('characters')
-      .select('character_name, class, hp, max_hp, conditions, drinks_consumed, tolerance_threshold, slot')
+      .select('character_name, class, hp, max_hp, conditions, drinks_consumed, tolerance_threshold, slot, position')
       .eq('session_id', id)
       .order('slot')
 

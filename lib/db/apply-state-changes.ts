@@ -13,6 +13,7 @@ const CHARACTER_FIELDS = new Set([
   'inventory',
   'spell_slots',
   'drinks_consumed',
+  'position',
 ])
 
 // ---------------------------------------------------------------------------

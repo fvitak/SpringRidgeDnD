@@ -45,6 +45,7 @@ interface PartyMember {
   drinks_consumed: number
   tolerance_threshold: number
   slot: number
+  position: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +151,11 @@ function PartySidebar({ sessionId, onInsertName }: { sessionId: string; onInsert
 
             {/* Class */}
             <p className="text-xs text-gray-400 capitalize">{member.class}</p>
+
+            {/* Location */}
+            {member.position && (
+              <p className="text-xs text-gray-500 italic leading-tight">{member.position}</p>
+            )}
 
             {/* HP bar */}
             <div>
