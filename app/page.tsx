@@ -27,6 +27,7 @@ export default function DMScreen() {
   const [currentInput, setCurrentInput] = useState('')
   const [loadingHistory, setLoadingHistory] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Load history on mount
   useEffect(() => {
@@ -89,6 +90,7 @@ export default function DMScreen() {
       if (index >= narration.length) {
         clearInterval(interval)
         setIsTyping(false)
+        inputRef.current?.focus()
       }
     }, 20)
   }
@@ -267,6 +269,7 @@ export default function DMScreen() {
       <footer className="flex-shrink-0 px-6 py-4 bg-gray-900 border-t border-gray-800">
         <div className="flex gap-3 max-w-4xl mx-auto">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
