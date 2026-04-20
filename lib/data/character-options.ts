@@ -16,6 +16,14 @@ export type AbilityScore = (typeof ABILITY_SCORES)[number];
 // Standard array (point-buy equivalent, descending)
 export const STANDARD_STAT_ARRAY = [16, 14, 13, 12, 10, 8] as const;
 
+// Recommended stat layouts per class — players can adjust from these defaults
+export const CLASS_STAT_DEFAULTS: Record<string, Record<string, number>> = {
+  fighter: { str: 16, con: 14, dex: 13, wis: 12, cha: 10, int: 8 },
+  cleric:  { wis: 16, con: 14, cha: 13, str: 12, dex: 10, int: 8 },
+  rogue:   { dex: 16, int: 14, cha: 13, con: 12, wis: 10, str: 8 },
+  wizard:  { int: 16, dex: 14, con: 13, wis: 12, cha: 10, str: 8 },
+};
+
 // ============================================================
 // Classes
 // ============================================================

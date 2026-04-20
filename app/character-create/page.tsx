@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { CLASSES, RACES, STANDARD_STAT_ARRAY, ABILITY_SCORES } from '@/lib/data/character-options'
+import { CLASSES, RACES, ABILITY_SCORES, CLASS_STAT_DEFAULTS } from '@/lib/data/character-options'
 import { QUIZ_QUESTIONS, scoreQuiz } from '@/lib/data/personality-quiz'
 
 // ---------------------------------------------------------------------------
@@ -49,128 +49,63 @@ interface StatAssignmentProps {
   onChange: (assignments: Record<string, number>) => void
 }
 
-function StatAssignment({ assignments, onChange }: StatAssignmentProps) {
-  const [selectedValue, setSelectedValue] = useState<number | null>(null)
-
-  // Which values are still in the pool (unassigned)
-  const assignedValues = Object.values(assignments)
-  const poolValues = [...STANDARD_STAT_ARRAY].filter((v) => {
-    // Count how many times this value appears in assigned vs pool
-    const totalInArray = STANDARD_STAT_ARRAY.filter((x) => x === v).length
-    const usedCount = assignedValues.filter((x) => x === v).length
-    return usedCount < totalInArray
-  })
-
-  // Keep pool sorted descending for display
-  const sortedPool = [...poolValues].sort((a, b) => b - a)
-
-  function handlePoolClick(val: number) {
-    if (selectedValue === val) {
-      setSelectedValue(null)
-    } else {
-      setSelectedValue(val)
-    }
+function StatAdjuster({ assignments, onChange }: StatAssignmentProps) {
+  function swapUp(stat: string) {
+    const current = assignments[stat]
+    const candidates = Object.entries(assignments)
+      .filter(([s, v]) => s !== stat && v > current)
+      .sort(([, a], [, b]) => a - b)
+    if (candidates.length === 0) return
+    const [targetStat, targetVal] = candidates[0]
+    onChange({ ...assignments, [stat]: targetVal, [targetStat]: current })
   }
 
-  function handleStatClick(stat: string) {
-    if (selectedValue === null) {
-      // If stat is already assigned, un-assign it back to pool
-      if (assignments[stat] !== undefined) {
-        const next = { ...assignments }
-        delete next[stat]
-        onChange(next)
-      }
-      return
-    }
-
-    // If this stat already has a value, swap — put its current value back to pool
-    const next = { ...assignments }
-    // No need to explicitly "put back" — the pool is derived from what's not assigned
-    next[stat] = selectedValue
-    onChange(next)
-    setSelectedValue(null)
+  function swapDown(stat: string) {
+    const current = assignments[stat]
+    const candidates = Object.entries(assignments)
+      .filter(([s, v]) => s !== stat && v < current)
+      .sort(([, a], [, b]) => b - a)
+    if (candidates.length === 0) return
+    const [targetStat, targetVal] = candidates[0]
+    onChange({ ...assignments, [stat]: targetVal, [targetStat]: current })
   }
-
-  function handleUnassign(stat: string) {
-    const next = { ...assignments }
-    delete next[stat]
-    onChange(next)
-    setSelectedValue(null)
-  }
-
-  const allAssigned = ABILITY_SCORES.every((s) => assignments[s] !== undefined)
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-amber-300 text-center">
-        Tap a value below, then tap a stat to assign it.
-        Tap an assigned stat to remove it.
-      </p>
+    <div className="space-y-2">
+      {ABILITY_SCORES.map((stat) => {
+        const value = assignments[stat] ?? 10
+        const canUp = Object.values(assignments).some(v => v > value)
+        const canDown = Object.values(assignments).some(v => v < value)
 
-      {/* Value Pool */}
-      <div>
-        <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 text-center">Available Values</p>
-        <div className="flex flex-wrap justify-center gap-3">
-          {sortedPool.length === 0 && (
-            <span className="text-gray-500 text-sm italic">All values assigned</span>
-          )}
-          {sortedPool.map((val, i) => (
-            <button
-              key={`${val}-${i}`}
-              onClick={() => handlePoolClick(val)}
-              className={`w-14 h-14 rounded-xl text-xl font-bold border-2 transition-all ${
-                selectedValue === val
-                  ? 'bg-amber-400 text-gray-900 border-amber-300 scale-110 shadow-lg shadow-amber-500/40'
-                  : 'bg-gray-800 text-amber-400 border-gray-600 hover:border-amber-500'
-              }`}
-            >
-              {val}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Stat Slots */}
-      <div className="grid grid-cols-2 gap-3">
-        {ABILITY_SCORES.map((stat) => {
-          const assigned = assignments[stat]
-          const isTarget = selectedValue !== null
-          return (
-            <button
-              key={stat}
-              onClick={() => assigned !== undefined ? handleUnassign(stat) : handleStatClick(stat)}
-              className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${
-                assigned !== undefined
-                  ? 'bg-gray-700 border-amber-600 text-white'
-                  : isTarget
-                  ? 'bg-gray-800 border-amber-400 border-dashed text-amber-400 animate-pulse'
-                  : 'bg-gray-800 border-gray-600 text-gray-500'
-              }`}
-            >
-              <div className="text-left">
-                <div className="text-xs text-gray-400 uppercase tracking-wider">{STAT_LABELS[stat]}</div>
-                <div className="text-xs text-gray-500">{STAT_FULL_LABELS[stat]}</div>
+        return (
+          <div key={stat} className="flex items-center bg-gray-800 rounded-xl px-4 py-3 border border-gray-700">
+            <div className="flex-1">
+              <span className="text-sm font-bold text-amber-500 uppercase tracking-wider">{STAT_LABELS[stat]}</span>
+              <span className="text-xs text-gray-500 ml-2">{STAT_FULL_LABELS[stat]}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => swapDown(stat)}
+                disabled={!canDown}
+                className="w-9 h-9 rounded-full bg-gray-700 text-white font-bold text-xl disabled:opacity-25 hover:bg-gray-600 active:scale-95 transition-all flex items-center justify-center"
+              >
+                −
+              </button>
+              <div className="text-center w-12">
+                <div className="text-2xl font-bold text-amber-400 tabular-nums">{value}</div>
+                <div className="text-xs text-gray-400">{modStr(value)}</div>
               </div>
-              <div className="text-right">
-                {assigned !== undefined ? (
-                  <>
-                    <div className="text-2xl font-bold text-amber-400">{assigned}</div>
-                    <div className="text-xs text-gray-400">{modStr(assigned)}</div>
-                  </>
-                ) : (
-                  <div className="text-2xl text-gray-600">—</div>
-                )}
-              </div>
-            </button>
-          )
-        })}
-      </div>
-
-      {allAssigned && (
-        <p className="text-center text-green-400 text-sm font-medium">
-          All stats assigned! Tap any to re-assign.
-        </p>
-      )}
+              <button
+                onClick={() => swapUp(stat)}
+                disabled={!canUp}
+                className="w-9 h-9 rounded-full bg-gray-700 text-white font-bold text-xl disabled:opacity-25 hover:bg-gray-600 active:scale-95 transition-all flex items-center justify-center"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -372,11 +307,14 @@ function CharacterCreateInner() {
         {/* ── STEP 3: Stats ── */}
         {step === 'stats' && (
           <div>
-            <h2 className="text-xl font-bold text-center mb-2">Assign Your Stats</h2>
-            <p className="text-center text-gray-400 text-sm mb-6">
-              Standard array: 16 / 14 / 13 / 12 / 10 / 8
+            <h2 className="text-xl font-bold text-center mb-2">Adjust Your Stats</h2>
+            <p className="text-center text-gray-400 text-sm mb-1">
+              Pre-set for your class. Use +/− to swap values between stats.
             </p>
-            <StatAssignment assignments={statAssignments} onChange={setStatAssignments} />
+            <p className="text-center text-gray-600 text-xs mb-5">
+              Values: 16 / 14 / 13 / 12 / 10 / 8
+            </p>
+            <StatAdjuster assignments={statAssignments} onChange={setStatAssignments} />
           </div>
         )}
 
@@ -524,7 +462,11 @@ function CharacterCreateInner() {
                 ← Back
               </button>
               <button
-                onClick={() => setStep('stats')}
+                onClick={() => {
+                  const defaults = CLASS_STAT_DEFAULTS[selectedClass]
+                  if (defaults) setStatAssignments(defaults)
+                  setStep('stats')
+                }}
                 disabled={!selectedRace}
                 className="flex-[2] py-4 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold text-lg rounded-2xl transition-all"
               >
