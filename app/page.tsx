@@ -270,13 +270,15 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
 
         {/* Adventure name */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-300">Adventure Name</label>
-          <input
-            type="text"
+          <label className="block text-sm font-medium text-gray-300">Adventure</label>
+          <select
             value={adventureName}
             onChange={(e) => setAdventureName(e.target.value)}
             className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-          />
+          >
+            <option value="The Wild Sheep Chase">The Wild Sheep Chase</option>
+            <option value="Random Encounter">Random Encounter (Combat Test)</option>
+          </select>
         </div>
 
         {/* Player count */}
@@ -550,6 +552,14 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     loadHistory()
   }, [sessionId])
 
+  // Auto-trigger combat for Random Encounter mode
+  useEffect(() => {
+    if (loadingHistory) return
+    if (session.name !== 'Random Encounter') return
+    if (log.length > 0 || isStreaming || isTyping) return
+    handleSubmit('[DM]: Start a random combat encounter immediately. Roll initiative for all players and NPCs and begin combat.')
+  }, [loadingHistory]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-scroll to bottom whenever log changes
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -621,8 +631,8 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     typewriterRef.current.interval = interval
   }
 
-  async function handleSubmit() {
-    const trimmed = input.trim()
+  async function handleSubmit(overrideText?: string) {
+    const trimmed = (overrideText ?? input).trim()
     if (!trimmed || isStreaming || isTyping) return
 
     // UX-02: Prepend selected character name if any
