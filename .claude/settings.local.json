@@ -11,7 +11,12 @@
       "Bash(cmd /c \"rmdir /s /q \\\\\"C:\\\\Users\\\\fvita\\\\OneDrive\\\\Desktop\\\\SpringRidgeDnD\\\\tmp-scaffold\\\\\"\")",
       "Bash(echo \"exit: $?\")",
       "Bash(npm install *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"require\\('./lib/prompts/wild-sheep-chase.ts'\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(node -e ' *)",
+      "Bash(node)"
     ]
   }
 }

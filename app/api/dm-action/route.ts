@@ -40,11 +40,11 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'session_id is required' }, { status: 400 })
   }
 
-  // 2. Fetch last 10 event log entries for this session
+  // 2. Fetch last 6 event log entries for this session (3 full exchanges)
   let eventLog: Awaited<ReturnType<typeof getEventLog>> = []
   try {
     const fullLog = await getEventLog(session_id)
-    eventLog = fullLog.slice(-10)
+    eventLog = fullLog.slice(-6)
   } catch (err) {
     // Non-fatal — proceed without history rather than failing the whole request
     console.error('Failed to fetch event log:', err)
@@ -61,9 +61,10 @@ export async function POST(req: NextRequest) {
     })
     historyMessages.push({
       role: 'assistant',
-      content: typeof entry.ai_response === 'string'
-        ? entry.ai_response
-        : JSON.stringify(entry.ai_response),
+      content: (() => {
+        const r = entry.ai_response as { narration?: string } | null
+        return r?.narration ?? JSON.stringify(entry.ai_response)
+      })(),
     })
   }
 
@@ -95,7 +96,13 @@ export async function POST(req: NextRequest) {
         const anthropicStream = client.messages.stream({
           model: 'claude-sonnet-4-6',
           max_tokens: 2048,
-          system: buildSystemPrompt(game_state),
+          system: [
+            {
+              type: "text" as const,
+              text: buildSystemPrompt(game_state),
+              cache_control: { type: "ephemeral" as const },
+            },
+          ],
           messages,
         })
 

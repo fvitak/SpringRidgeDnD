@@ -199,13 +199,34 @@ export default function DMScreen() {
 
   const isBusy = isStreaming || isTyping
 
+  async function handleRestart() {
+    if (!window.confirm('Start a new session? This will clear the current adventure.')) return
+    try {
+      await fetch('/api/restart', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: SESSION_ID }),
+      })
+    } catch (err) {
+      console.error('Failed to restart session:', err)
+    }
+    setLog([])
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-gray-100 font-serif overflow-hidden">
       {/* Header */}
-      <header className="flex-shrink-0 px-6 py-3 bg-gray-900 border-b border-gray-800 shadow-md">
+      <header className="flex-shrink-0 px-6 py-3 bg-gray-900 border-b border-gray-800 shadow-md flex items-center justify-between">
         <h1 className="text-lg font-semibold tracking-wide text-amber-400">
           The Wild Sheep Chase &mdash; DM Screen
         </h1>
+        <button
+          onClick={handleRestart}
+          disabled={isBusy}
+          className="text-xs text-gray-500 hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          New Session
+        </button>
       </header>
 
       {/* Narration log */}
