@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const supabase = getSupabase()
     const { data, error } = await supabase
       .from('sessions')
-      .insert({ name, status: 'lobby', join_token, player_count })
+      .insert({ name, status: 'active', join_token, player_count })
       .select('id, join_token')
       .single()
 
