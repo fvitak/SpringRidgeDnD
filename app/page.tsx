@@ -772,7 +772,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     if (loadingHistory) return
     if (session.name !== 'Random Encounter') return
     if (log.length > 0 || isStreaming || isTyping) return
-    handleSubmit('[DM]: Combat test mode. Invent a party of 4 adventurers — give them names and classes (Fighter, Rogue, Cleric, Wizard). They are ambushed on a forest road by 3 bandits and a bandit captain. Roll initiative for everyone, show the order, and begin combat round 1 now.')
+    handleSubmit('[DM]: Combat test mode. Invent a party of 4 adventurers — give them names and classes (Fighter, Rogue, Cleric, Wizard). They are ambushed on a forest road by 3 bandits and a bandit captain. Roll initiative for all enemies. Request initiative rolls from each player character. Begin combat.')
   }, [loadingHistory]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom whenever log changes

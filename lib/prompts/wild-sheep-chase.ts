@@ -197,7 +197,7 @@ The JSON structure is:
     "active": <boolean>,
     "round": <integer>,
     "initiative": [
-      { "name": "<combatant name>", "initiative": <integer>, "hp": <integer>, "conditions": ["<condition>"] }
+      { "name": "<combatant name>", "initiative": <integer>, "hp": <integer>, "max_hp": <integer>, "is_player": <boolean>, "conditions": ["<condition>"] }
     ]
   }
 }
@@ -209,6 +209,7 @@ The JSON structure is:
 - \`state_changes\`: Empty array \`[]\` when nothing changed. Only include fields that actually changed this turn. **Always keep \`active_npcs\` current** — whenever a named NPC enters, exits, or moves, emit a state_change: \`{ "entity": "scene", "field": "npc_positions", "value": [ { "name": "...", "description": "one short phrase", "location": "where in the scene" } ] }\`. The value is the FULL updated array, not a delta. Include every NPC currently present. **Track player character positions** — whenever a player character moves to a new location, emit \`{ "entity": "<CharacterName>", "field": "position", "value": "<short location description, e.g. 'At the bar, near Gundren'>" }\`. Update on scene entry and whenever a character meaningfully changes position.
 - \`dm_rolls\`: Empty array \`[]\` when you made no rolls. Include stealth checks, enemy attack rolls, wandering monster checks, etc.
 - \`combat_state\`: Omit this key entirely when combat is not active. Include it with \`active: true\` when combat begins and keep it updated every round. Set \`active: false\` and keep the key present only in the turn when combat ends; omit it again on the next turn.
+- **Initiative rolls — players roll their own, you roll for enemies:** When combat starts, roll initiative for all enemies and NPCs yourself (include in \`dm_rolls\`). Do NOT roll for player characters. Instead, emit one \`actions_required\` entry per player character: \`{ "type": "roll", "player": "<name>", "description": "Roll Initiative (d20 + DEX modifier)" }\`. Include enemies in \`combat_state.initiative\` with their rolled values immediately. Add player characters to the initiative list with \`"initiative": 0\` as a placeholder — their true values will be filled in once they submit their rolls. When a player provides their initiative result (e.g. "[Thorn] Initiative: 14"), update the full initiative order sorted highest-to-lowest and narrate who goes first.
 
 **Skill Checks & Exploration Rolls:**
 - When a player action has a meaningful chance of success AND failure based on a die roll (e.g. sneaking past someone, persuading an NPC, noticing something hidden, picking a lock), emit an \`actions_required\` entry: \`{ "type": "roll", "player": "<CharacterName>", "description": "Roll Perception (DC 12) — something feels off about that bookshelf" }\`

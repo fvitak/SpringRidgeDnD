@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       try {
         const anthropicStream = client.messages.stream({
           model: 'claude-sonnet-4-6',
-          max_tokens: 2048,
+          max_tokens: 4096,
           system: [
             {
               type: "text" as const,
