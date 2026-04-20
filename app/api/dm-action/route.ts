@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest } from 'next/server'
 import { buildSystemPrompt } from '@/lib/prompts/wild-sheep-chase'
 import { parseDMResponse } from '@/lib/schemas/dm-response'
-import { getEventLog } from '@/lib/db/event-log'
+import { getEventLog, appendEventLog } from '@/lib/db/event-log'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -111,6 +111,7 @@ export async function POST(req: NextRequest) {
         // Parse and validate the complete response
         try {
           const dmResponse = parseDMResponse(fullText)
+          await appendEventLog(session_id, player_input.trim(), dmResponse)
           enqueue(JSON.stringify({ done: true, response: dmResponse }))
         } catch {
           enqueue(JSON.stringify({ error: 'Failed to parse AI response' }))
