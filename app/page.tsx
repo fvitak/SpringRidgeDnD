@@ -704,7 +704,8 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const typewriterRef = useRef<{
     interval: ReturnType<typeof setInterval> | null
     fullText: string
-  }>({ interval: null, fullText: '' })
+    pendingRoll: ActionRequired | null
+  }>({ interval: null, fullText: '', pendingRoll: null })
 
   const sessionId = session.session_id
 
@@ -849,6 +850,11 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
         clearInterval(interval)
         typewriterRef.current.interval = null
         setIsTyping(false)
+        // Show roll modal only after narration finishes typing
+        if (typewriterRef.current.pendingRoll) {
+          setPendingRoll(typewriterRef.current.pendingRoll)
+          typewriterRef.current.pendingRoll = null
+        }
       }
     }, 20)
 
@@ -924,9 +930,9 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                 parsed.response.combat_state.active ? parsed.response.combat_state : null
               )
             }
-            // Check for a roll action
+            // Queue roll modal to appear after typewriter finishes
             const rollAction = parsed.response.actions_required?.find((a) => a.type === 'roll')
-            if (rollAction) setPendingRoll(rollAction)
+            typewriterRef.current.pendingRoll = rollAction ?? null
             startTypewriter(narration)
           } else if (parsed.error) {
             setLog((prev) => [
