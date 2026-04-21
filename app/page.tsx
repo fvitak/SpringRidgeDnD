@@ -779,7 +779,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   // Auto-start Wild Sheep Chase intro
   useEffect(() => {
     if (loadingHistory) return
-    if (session.name !== 'Wild Sheep Chase') return
+    if (session.name !== 'The Wild Sheep Chase') return
     if (log.length > 0 || isStreaming || isTyping) return
     handleSubmit('[DM]: Begin the adventure. Set the scene at The Wooly Flagon tavern in Millhaven.')
   }, [loadingHistory, restartKey]) // eslint-disable-line react-hooks/exhaustive-deps
