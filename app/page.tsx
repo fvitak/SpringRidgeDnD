@@ -483,7 +483,9 @@ function LobbyScreen({
       {/* Header */}
       <header className="flex-shrink-0 px-6 py-4 bg-gray-900 border-b border-gray-800 text-center">
         <h1 className="text-2xl font-bold text-amber-400 tracking-wide">{session.name}</h1>
-        <p className="text-gray-400 text-sm mt-1">Players — scan to join</p>
+        <p className="text-gray-400 text-sm mt-1">
+          Click <span className="text-amber-400 font-medium">Create Character</span> for each player, then start the adventure
+        </p>
       </header>
 
       {/* QR grid */}
@@ -529,15 +531,12 @@ function LobbyScreen({
                       {playerName ?? 'Joined'}
                     </p>
                   ) : (
-                    <>
-                      <p className="text-gray-500 text-sm italic mb-2">Waiting...</p>
-                      <a
-                        href={`/character-create?session_id=${session.session_id}&slot=${slot}`}
-                        className="inline-block w-full text-xs text-gray-400 hover:text-amber-400 border border-gray-700 hover:border-amber-600 rounded-lg px-2 py-1.5 transition-colors"
-                      >
-                        Create on this PC
-                      </a>
-                    </>
+                    <a
+                      href={`/character-create?session_id=${session.session_id}&slot=${slot}&count=${session.player_count}`}
+                      className="inline-block w-full py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm rounded-lg transition-colors text-center"
+                    >
+                      Create Character
+                    </a>
                   )}
                 </div>
               </div>

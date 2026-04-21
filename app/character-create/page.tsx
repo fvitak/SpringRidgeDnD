@@ -63,7 +63,7 @@ function QRCanvas({ url, size }: { url: string; size: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Done screen — shown after character creation
+// Done screen — shown after character creation (PC-first flow)
 // ---------------------------------------------------------------------------
 
 function DoneScreen({
@@ -71,32 +71,82 @@ function DoneScreen({
   cls,
   characterId,
   sheetUrl,
+  slot,
+  playerCount,
+  sessionId,
 }: {
   name: string
   cls: string
   characterId: string
   sheetUrl: string
+  slot: number
+  playerCount: number
+  sessionId: string
 }) {
+  const isLastSlot = slot >= playerCount
+  const nextSlotUrl = `/character-create?session_id=${sessionId}&slot=${slot + 1}&count=${playerCount}`
+
   return (
-    <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-6 text-center">
-      <div className="text-6xl mb-4">⚔️</div>
-      <h1 className="text-3xl font-bold text-amber-400 mb-2">You&apos;re in!</h1>
-      <p className="text-xl text-white mb-1">{name}</p>
-      <p className="text-lg text-gray-400 mb-8">Level 1 {cls}</p>
-
-      {/* QR code — scan to open character sheet on another device */}
-      <div className="bg-white p-3 rounded-2xl mb-4 shadow-lg">
-        <QRCanvas url={sheetUrl} size={200} />
+    <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-6">
+      {/* Back to lobby — always accessible at the top */}
+      <div className="absolute top-0 left-0 right-0 px-4 py-3 flex items-center">
+        <a
+          href="/"
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-amber-400 transition-colors"
+        >
+          <span>←</span>
+          <span>Back to Lobby</span>
+        </a>
+        <span className="ml-auto text-xs text-gray-600">Player {slot} of {playerCount}</span>
       </div>
-      <p className="text-gray-500 text-xs mb-8">Scan to bookmark your character sheet</p>
 
-      {/* Primary CTA */}
-      <a
-        href={`/player/${characterId}`}
-        className="w-full max-w-xs block py-4 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-lg rounded-2xl transition-all text-center"
-      >
-        Open My Character Sheet →
-      </a>
+      <div className="w-full max-w-xs text-center">
+        {/* Confirmation */}
+        <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center mx-auto mb-4">
+          <span className="text-2xl">✓</span>
+        </div>
+        <h1 className="text-2xl font-bold text-amber-400 mb-1">Player {slot} Ready!</h1>
+        <p className="text-lg text-white mb-0.5">{name}</p>
+        <p className="text-sm text-gray-400 mb-8">Level 1 {cls}</p>
+
+        {/* Primary actions */}
+        <div className="space-y-3 mb-10">
+          {!isLastSlot ? (
+            <a
+              href={nextSlotUrl}
+              className="block w-full py-4 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-lg rounded-2xl transition-all text-center"
+            >
+              Create Player {slot + 1} →
+            </a>
+          ) : (
+            <a
+              href="/"
+              className="block w-full py-4 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-lg rounded-2xl transition-all text-center"
+            >
+              All Done — Start the Adventure →
+            </a>
+          )}
+          <a
+            href="/"
+            className="block w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold rounded-2xl transition-all text-center"
+          >
+            ← Back to Lobby
+          </a>
+        </div>
+
+        {/* QR code — secondary, for players to scan later on their phones */}
+        <div className="border border-gray-800 rounded-2xl p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">
+            Player {slot}&apos;s Character Sheet QR
+          </p>
+          <div className="bg-white p-2 rounded-xl inline-block mb-2">
+            <QRCanvas url={sheetUrl} size={160} />
+          </div>
+          <p className="text-xs text-gray-600">
+            Player {slot} can scan this during the game to access their character on their phone
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -182,6 +232,7 @@ function CharacterCreateInner() {
   const sessionId = searchParams.get('session_id') ?? ''
   const slotParam = searchParams.get('slot') ?? '1'
   const slot = parseInt(slotParam, 10) || 1
+  const playerCount = parseInt(searchParams.get('count') ?? '4', 10) || 4
 
   const [step, setStep] = useState<Step>('class')
   const [selectedClass, setSelectedClass] = useState<string>('')
@@ -272,6 +323,9 @@ function CharacterCreateInner() {
         cls={createdCharacter.cls}
         characterId={createdCharacter.id}
         sheetUrl={sheetUrl}
+        slot={slot}
+        playerCount={playerCount}
+        sessionId={sessionId}
       />
     )
   }
@@ -279,7 +333,18 @@ function CharacterCreateInner() {
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-4 pt-4 pb-3">
+      <div className="sticky top-0 z-10 bg-gray-950 border-b border-gray-800 px-4 pt-3 pb-3">
+        {/* Top row: back link + slot indicator */}
+        <div className="flex items-center justify-between mb-2">
+          <a
+            href="/"
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-amber-400 transition-colors"
+          >
+            <span>←</span>
+            <span>Lobby</span>
+          </a>
+          <span className="text-xs text-gray-600">Player {slot} of {playerCount}</span>
+        </div>
         <h1 className="text-center text-amber-400 font-bold text-lg tracking-wide">
           Create Your Character
         </h1>
