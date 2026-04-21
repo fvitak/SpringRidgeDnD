@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, KeyboardEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, KeyboardEvent, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import QRCode from 'qrcode'
 
 // ---------------------------------------------------------------------------
@@ -1294,9 +1295,29 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
 // Root page — orchestrates screens
 // ---------------------------------------------------------------------------
 
-export default function DMScreen() {
+function DMScreenInner() {
+  const searchParams = useSearchParams()
   const [screen, setScreen] = useState<AppScreen>('creation')
   const [session, setSession] = useState<SessionInfo | null>(null)
+
+  // If ?session_id= is present (e.g. coming back from character-create),
+  // fetch the session and jump straight to the lobby.
+  useEffect(() => {
+    const id = searchParams.get('session_id')
+    if (!id) return
+
+    fetch(`/api/sessions/${id}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data) return
+        setSession(data as SessionInfo)
+        setScreen('lobby')
+        // Clean the URL without reloading so the address bar doesn't stay cluttered
+        window.history.replaceState({}, '', '/')
+      })
+      .catch(() => { /* fall through to creation screen */ })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleSessionCreated(info: SessionInfo) {
     setSession(info)
@@ -1316,4 +1337,12 @@ export default function DMScreen() {
   }
 
   return <NarrationScreen session={session} />
+}
+
+export default function DMScreen() {
+  return (
+    <Suspense fallback={null}>
+      <DMScreenInner />
+    </Suspense>
+  )
 }

@@ -91,7 +91,7 @@ function DoneScreen({
       {/* Back to lobby — always accessible at the top */}
       <div className="absolute top-0 left-0 right-0 px-4 py-3 flex items-center">
         <a
-          href="/"
+          href={`/?session_id=${sessionId}`}
           className="flex items-center gap-2 text-sm text-gray-500 hover:text-amber-400 transition-colors"
         >
           <span>←</span>
@@ -120,14 +120,14 @@ function DoneScreen({
             </a>
           ) : (
             <a
-              href="/"
+              href={`/?session_id=${sessionId}`}
               className="block w-full py-4 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-lg rounded-2xl transition-all text-center"
             >
               All Done — Start the Adventure →
             </a>
           )}
           <a
-            href="/"
+            href={`/?session_id=${sessionId}`}
             className="block w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold rounded-2xl transition-all text-center"
           >
             ← Back to Lobby
@@ -337,7 +337,7 @@ function CharacterCreateInner() {
         {/* Top row: back link + slot indicator */}
         <div className="flex items-center justify-between mb-2">
           <a
-            href="/"
+            href={`/?session_id=${sessionId}`}
             className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-amber-400 transition-colors"
           >
             <span>←</span>
