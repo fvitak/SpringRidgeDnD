@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import QRCode from 'qrcode'
 import { CLASSES, RACES, ABILITY_SCORES, CLASS_STAT_DEFAULTS } from '@/lib/data/character-options'
 import { QUIZ_QUESTIONS, scoreQuiz } from '@/lib/data/personality-quiz'
 
@@ -43,6 +44,68 @@ function modStr(score: number): string {
   const m = Math.floor((score - 10) / 2)
   return m >= 0 ? `+${m}` : `${m}`
 }
+
+// ---------------------------------------------------------------------------
+// QR canvas for the done screen
+// ---------------------------------------------------------------------------
+
+function QRCanvas({ url, size }: { url: string; size: number }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    if (!ref.current) return
+    QRCode.toCanvas(ref.current, url, {
+      width: size,
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' },
+    })
+  }, [url, size])
+  return <canvas ref={ref} width={size} height={size} className="rounded-xl" />
+}
+
+// ---------------------------------------------------------------------------
+// Done screen — shown after character creation
+// ---------------------------------------------------------------------------
+
+function DoneScreen({
+  name,
+  cls,
+  characterId,
+  sheetUrl,
+}: {
+  name: string
+  cls: string
+  characterId: string
+  sheetUrl: string
+}) {
+  return (
+    <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-6 text-center">
+      <div className="text-6xl mb-4">⚔️</div>
+      <h1 className="text-3xl font-bold text-amber-400 mb-2">You&apos;re in!</h1>
+      <p className="text-xl text-white mb-1">{name}</p>
+      <p className="text-lg text-gray-400 mb-8">Level 1 {cls}</p>
+
+      {/* QR code — scan to open character sheet on another device */}
+      <div className="bg-white p-3 rounded-2xl mb-4 shadow-lg">
+        <QRCanvas url={sheetUrl} size={200} />
+      </div>
+      <p className="text-gray-500 text-xs mb-8">Scan to bookmark your character sheet</p>
+
+      {/* Primary CTA */}
+      <a
+        href={`/player/${characterId}`}
+        className="w-full max-w-xs block py-4 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-lg rounded-2xl transition-all text-center"
+      >
+        Open My Character Sheet →
+      </a>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Stat Assignment UI
+// ---------------------------------------------------------------------------
+// Tap-to-assign approach: tap a value from the pool, then tap a stat slot to
+// place it. Works perfectly on mobile with no drag-and-drop complexity.
 
 interface StatAssignmentProps {
   assignments: Record<string, number>
@@ -130,7 +193,7 @@ function CharacterCreateInner() {
   const [characterName, setCharacterName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const [createdCharacter, setCreatedCharacter] = useState<{ name: string; cls: string } | null>(null)
+  const [createdCharacter, setCreatedCharacter] = useState<{ name: string; cls: string; id: string } | null>(null)
 
   const totalQuestions = QUIZ_QUESTIONS.length
 
@@ -177,8 +240,9 @@ function CharacterCreateInner() {
         return
       }
 
+      const data = await res.json()
       const cls = CLASSES.find((c) => c.id === selectedClass)?.name ?? selectedClass
-      setCreatedCharacter({ name: characterName.trim(), cls })
+      setCreatedCharacter({ name: characterName.trim(), cls, id: data.character_id })
       setStep('done')
     } catch {
       setSubmitError('Network error — please try again')
@@ -198,16 +262,17 @@ function CharacterCreateInner() {
   // ---------------------------------------------------------------------------
 
   if (step === 'done' && createdCharacter) {
+    const sheetUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/player/${createdCharacter.id}`
+      : `/player/${createdCharacter.id}`
+
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-6 text-center">
-        <div className="text-6xl mb-4">⚔️</div>
-        <h1 className="text-3xl font-bold text-amber-400 mb-2">You&apos;re in!</h1>
-        <p className="text-xl text-white mb-1">{createdCharacter.name}</p>
-        <p className="text-lg text-gray-400 mb-8">Level 1 {createdCharacter.cls}</p>
-        <p className="text-gray-300 text-sm max-w-xs">
-          Your character has been created. Return to the main screen to begin your adventure.
-        </p>
-      </div>
+      <DoneScreen
+        name={createdCharacter.name}
+        cls={createdCharacter.cls}
+        characterId={createdCharacter.id}
+        sheetUrl={sheetUrl}
+      />
     )
   }
 
