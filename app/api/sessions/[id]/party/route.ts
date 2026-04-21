@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { getSupabase } from '@/lib/supabase'
 
 export interface PartyMember {
+  id: string
   character_name: string
   class: string
   hp: number
@@ -27,7 +28,7 @@ export async function GET(
     const supabase = getSupabase()
     const { data, error } = await supabase
       .from('characters')
-      .select('character_name, class, hp, max_hp, conditions, drinks_consumed, tolerance_threshold, slot, position')
+      .select('id, character_name, class, hp, max_hp, conditions, drinks_consumed, tolerance_threshold, slot, position')
       .eq('session_id', id)
       .order('slot')
 

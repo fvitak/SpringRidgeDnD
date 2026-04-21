@@ -12,6 +12,8 @@ export interface GameState {
   combat_active: boolean | null
   active_npcs: unknown | null
   narrative_context: string | null
+  combat_state: unknown | null
+  pending_roll: unknown | null
   updated_at?: string
 }
 

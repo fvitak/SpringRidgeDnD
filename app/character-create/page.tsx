@@ -308,12 +308,13 @@ function CharacterCreateInner() {
         {step === 'stats' && (
           <div>
             <h2 className="text-xl font-bold text-center mb-2">Adjust Your Stats</h2>
-            <p className="text-center text-gray-400 text-sm mb-1">
+            <p className="text-center text-gray-400 text-sm mb-2">
               Pre-set for your class. Use +/− to swap values between stats.
             </p>
-            <p className="text-center text-gray-600 text-xs mb-5">
-              Values: 16 / 14 / 13 / 12 / 10 / 8
-            </p>
+            <div className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 mb-5 space-y-1.5 text-xs text-gray-400">
+              <p><span className="text-amber-500 font-semibold">How it works:</span> The six values (16, 14, 13, 12, 10, 8) are fixed — pressing + or − swaps your stat with the next higher or lower value in that set, it doesn&apos;t add or subtract points freely.</p>
+              <p><span className="text-amber-500 font-semibold">Odd numbers:</span> 13 and 12 give the same +1 modifier. If an odd score feels wasteful, swap it somewhere it matters less.</p>
+            </div>
             <StatAdjuster assignments={statAssignments} onChange={setStatAssignments} />
           </div>
         )}

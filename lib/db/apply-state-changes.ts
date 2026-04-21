@@ -20,6 +20,7 @@ const CHARACTER_FIELDS = new Set([
   'spell_slots',
   'drinks_consumed',
   'position',
+  'xp',
   'death_saves_successes',
   'death_saves_failures',
   'is_stable',

@@ -21,7 +21,19 @@
       "Bash(mkdir -p \"/c/Users/fvita/OneDrive/Desktop/SpringRidgeDnD/app/api/sessions/[id]/players\")",
       "Bash(mkdir -p \"/c/Users/fvita/OneDrive/Desktop/SpringRidgeDnD/app/join/[token]\")",
       "Bash(mkdir -p \"C:\\\\Users\\\\fvita\\\\OneDrive\\\\Desktop\\\\SpringRidgeDnD\\\\app\\\\api\\\\players\\\\[id]\")",
-      "Bash(mkdir -p \"C:\\\\Users\\\\fvita\\\\OneDrive\\\\Desktop\\\\SpringRidgeDnD\\\\app\\\\player\\\\[id]\")"
+      "Bash(mkdir -p \"C:\\\\Users\\\\fvita\\\\OneDrive\\\\Desktop\\\\SpringRidgeDnD\\\\app\\\\player\\\\[id]\")",
+      "Read(//c/Users/fvita/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/20f5492f-6c93-4bdb-a0df-caa2b0d2b21a/814a416e-0511-4899-87a9-fd979c48f83e/skills/docx/**)",
+      "Bash(pandoc \"C:\\\\Users\\\\fvita\\\\OneDrive\\\\Desktop\\\\SpringRidgeDnD\\\\DnD_AI_DM_Roadmap_and_Backlog.docx\" -t plain)",
+      "Bash(python \"C:\\\\Users\\\\fvita\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\20f5492f-6c93-4bdb-a0df-caa2b0d2b21a\\\\814a416e-0511-4899-87a9-fd979c48f83e\\\\skills\\\\docx\\\\scripts\\\\office\\\\unpack.py\" \"C:\\\\Users\\\\fvita\\\\OneDrive\\\\Desktop\\\\SpringRidgeDnD\\\\DnD_AI_DM_Roadmap_and_Backlog.docx\" \"/tmp/dnd_docx_unpacked/\")",
+      "Bash(py -3 -c ' *)",
+      "Bash(dir /tmp/dnd_docx_unpacked/)",
+      "Bash(py -3)",
+      "Bash(cygpath -w /tmp/dnd_docx_unpacked/word/document.xml)",
+      "Bash(cmd.exe /c echo %TEMP%)",
+      "Bash(iconv -f utf-8 -t utf-8)",
+      "Bash(py -3 -c \" import xml.etree.ElementTree as ET import sys, io out = io.TextIOWrapper\\(sys.stdout.buffer, encoding='utf-8', errors='replace'\\) ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'} tree = ET.parse\\(r'C:\\\\Users\\\\fvita\\\\AppData\\\\Local\\\\Temp\\\\dnd_docx_unpacked\\\\word\\\\document.xml'\\) root = tree.getroot\\(\\) body = root.find\\('.//w:body', ns\\) lines = [] for para in body.findall\\('.//w:p', ns\\): texts = [] for t in para.findall\\('.//w:t', ns\\): if t.text: texts.append\\(t.text\\) line = ''.join\\(texts\\) lines.append\\(line\\) out.write\\('\\\\n'.join\\(lines\\)\\) out.flush\\(\\) \")",
+      "Bash(awk '{print $2}')",
+      "Bash(python3 -)"
     ]
   }
 }

@@ -55,9 +55,11 @@ interface LogEntry {
   narration: string
   error?: string
   isHistory?: boolean
+  created_at?: string
 }
 
 interface PartyMember {
+  id: string
   character_name: string
   class: string
   hp: number
@@ -113,10 +115,12 @@ function PartySidebar({
   sessionId,
   onInsertName,
   combatState,
+  onShowQR,
 }: {
   sessionId: string
   onInsertName: (name: string) => void
   combatState: CombatState | null
+  onShowQR: (member: PartyMember) => void
 }) {
   const [party, setParty] = useState<PartyMember[]>([])
   const [npcs, setNpcs] = useState<SceneNPC[]>([])
@@ -165,11 +169,13 @@ function PartySidebar({
         return (
           <div
             key={member.slot}
-            className="bg-gray-800 rounded-xl p-3 space-y-2 border border-gray-700"
+            className="bg-gray-800 rounded-xl p-3 space-y-2 border border-gray-700 cursor-pointer hover:border-amber-600 transition-colors group"
+            onClick={() => onShowQR(member)}
+            title="Click to show player QR code"
           >
             {/* Name + intox */}
             <div className="flex items-center justify-between gap-1">
-              <span className="text-sm font-semibold text-gray-100 truncate leading-tight">
+              <span className="text-sm font-semibold text-gray-100 truncate leading-tight group-hover:text-amber-400 transition-colors">
                 {member.character_name}
               </span>
               {intox && (
@@ -370,6 +376,60 @@ function QRCodeImage({ url, size = 160 }: { url: string; size?: number }) {
   }, [url, size])
 
   return <canvas ref={canvasRef} className="rounded-lg" />
+}
+
+// ---------------------------------------------------------------------------
+// QR Player Re-join Modal
+// ---------------------------------------------------------------------------
+
+function QRPlayerModal({
+  member,
+  onClose,
+}: {
+  member: PartyMember
+  onClose: () => void
+}) {
+  const [url, setUrl] = useState('')
+
+  useEffect(() => {
+    setUrl(`${window.location.origin}/player/${member.id}`)
+  }, [member.id])
+
+  // Close on Escape
+  useEffect(() => {
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-6"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4 max-w-xs w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-gray-900 font-bold text-lg">{member.character_name}</p>
+        <p className="text-gray-500 text-sm -mt-2">Scan to rejoin</p>
+        {url ? (
+          <QRCodeImage url={url} size={220} />
+        ) : (
+          <div className="w-[220px] h-[220px] rounded-lg bg-gray-100 animate-pulse" />
+        )}
+        <p className="text-gray-400 text-xs text-center break-all">{url}</p>
+        <button
+          onClick={onClose}
+          className="mt-1 px-6 py-2 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-700 transition-colors"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -590,91 +650,157 @@ function InitiativeTracker({ combatState }: { combatState: CombatState }) {
 }
 
 // ---------------------------------------------------------------------------
-// Roll Prompt Modal
+// Action Prompt Modal (roll / confirm / choice)
 // ---------------------------------------------------------------------------
 
 function RollPromptModal({
   action,
-  onSubmit,
+  onSubmitText,
   onDismiss,
 }: {
   action: ActionRequired
-  onSubmit: (result: number) => void
+  onSubmitText: (text: string) => void
   onDismiss: () => void
 }) {
-  const [value, setValue] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [rollValue, setRollValue] = useState('')
+  const [freeText, setFreeText] = useState('')
 
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+  const numVal = Number(rollValue)
+  const isRollValid = rollValue.trim() !== '' && Number.isInteger(numVal) && numVal >= 1 && numVal <= 30
 
-  const numVal = Number(value)
-  const isValid = value.trim() !== '' && Number.isInteger(numVal) && numVal >= 1 && numVal <= 30
-
-  function handleSubmitClick() {
-    if (!isValid) return
-    onSubmit(numVal)
+  function submitRoll() {
+    if (!isRollValid) return
+    onSubmitText(`[${action.player ?? 'Party'}] rolled ${numVal} — ${action.description}`)
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' && isValid) onSubmit(numVal)
-    if (e.key === 'Escape') onDismiss()
+  function submitText(text: string) {
+    if (!text.trim()) return
+    const prefix = action.player ? `[${action.player}]: ` : ''
+    onSubmitText(`${prefix}${text.trim()}`)
   }
+
+  if (action.type === 'roll') {
+    return (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="bg-gray-900 border border-amber-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+          <div className="text-center">
+            <p className="text-3xl mb-1">🎲</p>
+            <h2 className="text-xl font-bold text-amber-400 tracking-wide uppercase">Roll Check!</h2>
+          </div>
+          {action.player && <p className="text-center text-sm font-semibold text-gray-300">{action.player}</p>}
+          <p className="text-gray-200 text-sm text-center leading-relaxed">{action.description}</p>
+          <input
+            autoFocus
+            type="number"
+            min={1}
+            max={30}
+            value={rollValue}
+            onChange={(e) => setRollValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') submitRoll(); if (e.key === 'Escape') onDismiss() }}
+            placeholder="1–30"
+            className="w-full bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-3 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+          />
+          <button onClick={submitRoll} disabled={!isRollValid} className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl transition-colors shadow-lg">
+            Submit Roll
+          </button>
+          <div className="text-center">
+            <button onClick={onDismiss} className="text-xs text-gray-500 hover:text-gray-300 transition-colors underline">Dismiss</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const isConfirm = action.type === 'confirm'
+  const borderColor = isConfirm ? 'border-blue-700' : 'border-purple-700'
+  const titleColor = isConfirm ? 'text-blue-400' : 'text-purple-400'
+  const btnColor = isConfirm ? 'bg-blue-700 hover:bg-blue-600' : 'bg-purple-700 hover:bg-purple-600'
+  const focusRing = isConfirm ? 'focus:ring-blue-500' : 'focus:ring-purple-500'
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-amber-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-        {/* Header */}
+      <div className={`bg-gray-900 border ${borderColor} rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4`}>
         <div className="text-center">
-          <p className="text-3xl mb-1">🎲</p>
-          <h2 className="text-xl font-bold text-amber-400 tracking-wide uppercase">
-            Roll Check!
+          <p className="text-3xl mb-1">{isConfirm ? '❓' : '⚡'}</p>
+          <h2 className={`text-xl font-bold ${titleColor} tracking-wide uppercase`}>
+            {isConfirm ? 'Clarification' : 'Decision'}
           </h2>
         </div>
-
-        {/* Player name */}
-        {action.player && (
-          <p className="text-center text-sm font-semibold text-gray-300">
-            {action.player}
-          </p>
-        )}
-
-        {/* Description */}
-        <p className="text-gray-200 text-sm text-center leading-relaxed">
-          {action.description}
-        </p>
-
-        {/* Number input */}
+        {action.player && <p className="text-center text-sm font-semibold text-gray-300">{action.player}</p>}
+        <p className="text-gray-200 text-sm text-center leading-relaxed">{action.description}</p>
         <input
-          ref={inputRef}
-          type="number"
-          min={1}
-          max={30}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="1–30"
-          className="w-full bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-3 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+          autoFocus
+          type="text"
+          value={freeText}
+          onChange={(e) => setFreeText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') submitText(freeText); if (e.key === 'Escape') onDismiss() }}
+          placeholder={isConfirm ? 'Type your response...' : 'Your choice...'}
+          className={`w-full bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 ${focusRing} focus:border-transparent`}
         />
-
-        {/* Submit button */}
         <button
-          onClick={handleSubmitClick}
-          disabled={!isValid}
-          className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl transition-colors shadow-lg"
+          onClick={() => submitText(freeText)}
+          disabled={!freeText.trim()}
+          className={`w-full py-3 ${btnColor} disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl transition-colors`}
         >
-          Submit Roll
+          {isConfirm ? 'Confirm' : 'Submit'}
         </button>
-
-        {/* Dismiss link */}
         <div className="text-center">
-          <button
-            onClick={onDismiss}
-            className="text-xs text-gray-500 hover:text-gray-300 transition-colors underline"
-          >
-            Dismiss
-          </button>
+          <button onClick={onDismiss} className="text-xs text-gray-500 hover:text-gray-300 transition-colors underline">Dismiss</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Session History Drawer (PER-03)
+// ---------------------------------------------------------------------------
+
+function HistoryDrawer({ log, onClose }: { log: LogEntry[]; onClose: () => void }) {
+  const entries = log.filter((e) => e.isHistory || e.created_at)
+
+  function formatTime(iso?: string) {
+    if (!iso) return ''
+    try {
+      return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    } catch { return '' }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-40 flex justify-end" onClick={onClose}>
+      <div
+        className="bg-gray-900 border-l border-gray-700 w-full max-w-md h-full flex flex-col overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 flex-shrink-0">
+          <h2 className="text-sm font-bold text-amber-400 uppercase tracking-widest">Session Log</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-xl leading-none">✕</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {entries.length === 0 && (
+            <p className="text-gray-600 text-sm italic">No history yet.</p>
+          )}
+          {entries.map((entry, i) => (
+            <div key={i} className="space-y-1.5 border-b border-gray-800 pb-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-gray-500 truncate">
+                  <span className="text-gray-600 mr-1">&gt;</span>
+                  {entry.player_input}
+                </p>
+                {entry.created_at && (
+                  <span className="text-xs text-gray-700 flex-shrink-0">{formatTime(entry.created_at)}</span>
+                )}
+              </div>
+              {entry.error ? (
+                <p className="text-red-500 text-xs italic">{entry.error}</p>
+              ) : (
+                <p className="text-gray-300 text-sm leading-relaxed line-clamp-6">
+                  {entry.narration}
+                </p>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -698,6 +824,8 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const [pendingRoll, setPendingRoll] = useState<ActionRequired | null>(null)
   const [rollInput, setRollInput] = useState('')
   const [restartKey, setRestartKey] = useState(0)
+  const [qrMember, setQrMember] = useState<PartyMember | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   // Ref for typewriter so the keydown handler can skip it
@@ -740,25 +868,39 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     return () => clearInterval(interval)
   }, [fetchParty])
 
-  // Load history on mount
+  // Load history + restore game state on mount (PER-01/PER-02)
   useEffect(() => {
     async function loadHistory() {
       try {
-        const res = await fetch(`/api/event-log?session_id=${encodeURIComponent(sessionId)}`)
-        if (!res.ok) throw new Error('Failed to fetch history')
-        const data: Array<{ player_input: string; ai_response: unknown; created_at: string }> =
-          await res.json()
+        const [logRes, stateRes] = await Promise.all([
+          fetch(`/api/event-log?session_id=${encodeURIComponent(sessionId)}`),
+          fetch(`/api/sessions/${sessionId}/state`),
+        ])
 
-        const entries: LogEntry[] = data.map((row) => {
-          const response = row.ai_response as DMResponse | null
-          return {
-            player_input: row.player_input,
-            narration: response?.narration ?? JSON.stringify(row.ai_response),
-            isHistory: true,
+        if (logRes.ok) {
+          const data: Array<{ player_input: string; ai_response: unknown; created_at: string }> =
+            await logRes.json()
+
+          const entries: LogEntry[] = data.map((row) => {
+            const response = row.ai_response as DMResponse | null
+            return {
+              player_input: row.player_input,
+              narration: response?.narration ?? JSON.stringify(row.ai_response),
+              isHistory: true,
+              created_at: row.created_at,
+            }
+          })
+          setLog(entries)
+        }
+
+        // Restore combat state from DB (PER-02)
+        if (stateRes.ok) {
+          const gameState = await stateRes.json()
+          if (gameState?.combat_state) {
+            const cs = gameState.combat_state as CombatState
+            setCombatState(cs.active ? cs : null)
           }
-        })
-
-        setLog(entries)
+        }
       } catch (err) {
         console.error('Failed to load history:', err)
       } finally {
@@ -930,8 +1072,10 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                 parsed.response.combat_state.active ? parsed.response.combat_state : null
               )
             }
-            // Queue roll modal to appear after typewriter finishes
-            const rollAction = parsed.response.actions_required?.find((a) => a.type === 'roll')
+            // Queue roll/confirm/choice modal to appear after typewriter finishes
+            const rollAction = parsed.response.actions_required?.find(
+              (a) => a.type === 'roll' || a.type === 'confirm' || a.type === 'choice'
+            )
             typewriterRef.current.pendingRoll = rollAction ?? null
             startTypewriter(narration)
           } else if (parsed.error) {
@@ -990,19 +1134,26 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     <div className="flex flex-col h-screen bg-gray-950 text-gray-100 font-serif overflow-hidden">
       {/* Header */}
       <header className="flex-shrink-0 px-6 py-3 bg-gray-900 border-b border-gray-800 shadow-md flex items-center justify-between">
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold tracking-wide text-amber-400">
             {session.name} &mdash; DM Screen
           </h1>
           {session.name === 'Random Encounter' && (
             <button
               onClick={handleRestart}
-              className="text-xs text-gray-400 hover:text-gray-200 border border-gray-600 rounded px-2 py-0.5 ml-2"
+              className="text-xs text-gray-400 hover:text-gray-200 border border-gray-600 rounded px-2 py-0.5"
             >
               ↺ Restart
             </button>
           )}
         </div>
+        <button
+          onClick={() => setShowHistory(true)}
+          className="text-xs text-gray-400 hover:text-amber-400 border border-gray-700 hover:border-amber-700 rounded px-2.5 py-1 transition-colors"
+          title="View session history"
+        >
+          📜 History
+        </button>
       </header>
 
       {/* Main content: narration + sidebar */}
@@ -1062,18 +1213,27 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
         </main>
 
         {/* UX-01: Party status sidebar — hidden on mobile */}
-        <PartySidebar sessionId={sessionId} onInsertName={handleInsertName} combatState={combatState} />
+        <PartySidebar sessionId={sessionId} onInsertName={handleInsertName} combatState={combatState} onShowQR={setQrMember} />
       </div>
 
-      {/* Roll prompt modal */}
+      {/* Session history drawer (PER-03) */}
+      {showHistory && (
+        <HistoryDrawer log={log} onClose={() => setShowHistory(false)} />
+      )}
+
+      {/* QR re-join modal */}
+      {qrMember && (
+        <QRPlayerModal member={qrMember} onClose={() => setQrMember(null)} />
+      )}
+
+      {/* Action prompt modal (roll / confirm / choice) */}
       {pendingRoll && (
         <RollPromptModal
           action={pendingRoll}
-          onSubmit={(result) => {
-            const formatted = `[${pendingRoll.player ?? 'Party'}] rolled ${result} — ${pendingRoll.description}`
+          onSubmitText={(text) => {
             setPendingRoll(null)
             setRollInput('')
-            handleSubmit(formatted)
+            handleSubmit(text)
           }}
           onDismiss={() => {
             setPendingRoll(null)
