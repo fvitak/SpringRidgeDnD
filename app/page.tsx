@@ -873,6 +873,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const [turnQueue, setTurnQueue] = useState<string[]>([])
   const [currentTurnIdx, setCurrentTurnIdx] = useState(0)
   const [committedActions, setCommittedActions] = useState<Record<string, string>>({})
+  const [pendingPlayerActions, setPendingPlayerActions] = useState<Record<string, ActionRequired>>({})
   const [sceneSuggestions, setSceneSuggestions] = useState<string[]>([])
   const [nudgeText, setNudgeText] = useState<string | null>(null)
   const [isAskingDM, setIsAskingDM] = useState(false)
@@ -1163,6 +1164,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     setTurnQueue([])
     setCurrentTurnIdx(0)
     setCommittedActions({})
+    setPendingPlayerActions({})
     setSceneSuggestions([])
     setNudgeText(null)
     setRestartKey(k => k + 1)
@@ -1181,9 +1183,13 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
         ? party.filter((m) => targeted.includes(m.character_name)).map((m) => m.character_name)
         : [...party].sort(() => Math.random() - 0.5).map((m) => m.character_name)
 
+    const actionMap: Record<string, ActionRequired> = {}
+    pendingActions.forEach((a) => { if (a.player) actionMap[a.player] = a })
+
     setTurnQueue(queue)
     setCurrentTurnIdx(0)
     setCommittedActions({})
+    setPendingPlayerActions(actionMap)
     setNudgeText(null)
     typewriterRef.current.pendingActions = []
   }, [isTyping, isStreaming, party]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1199,7 +1205,13 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
       return
     }
 
-    const effectiveInput = `[${currentPlayer}]: ${input.trim()}`
+    const pendingAction = pendingPlayerActions[currentPlayer]
+    const trimmed = input.trim()
+    const rollNum = Number(trimmed)
+    const effectiveInput =
+      pendingAction?.type === 'roll' && trimmed !== '' && Number.isInteger(rollNum) && rollNum >= 1
+        ? `[${currentPlayer}] rolled ${rollNum} — ${pendingAction.description}`
+        : `[${currentPlayer}]: ${trimmed}`
     const newCommitted = { ...committedActions, [currentPlayer]: effectiveInput }
     setInput('')
     setNudgeText(null)
@@ -1211,6 +1223,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
       setTurnQueue([])
       setCurrentTurnIdx(0)
       setCommittedActions({})
+      setPendingPlayerActions({})
       setSceneSuggestions([])
       handleSubmit(combined)
     } else {
@@ -1377,6 +1390,8 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
             ? `What does ${activePlayerName} do...`
             : 'What do you do?'
 
+          const activePendingAction = activePlayerName ? pendingPlayerActions[activePlayerName] : null
+
           return (
             <div className="max-w-4xl mx-auto space-y-3">
               {/* Active player header */}
@@ -1398,6 +1413,21 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                 </div>
               )}
 
+              {/* Pending action banner */}
+              {activePendingAction && !isBusy && (
+                <div className="flex items-start gap-3 px-3 py-2.5 bg-gray-800/80 border border-amber-700/50 rounded-lg">
+                  <span className="text-lg leading-none mt-0.5">
+                    {activePendingAction.type === 'roll' ? '🎲' : activePendingAction.type === 'confirm' ? '❓' : '⚡'}
+                  </span>
+                  <div>
+                    <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
+                      {activePendingAction.type === 'roll' ? 'Roll 1d20' : activePendingAction.type === 'confirm' ? 'Clarification needed' : 'Decision needed'}
+                    </p>
+                    <p className="text-sm text-gray-200 mt-0.5">{activePendingAction.description}</p>
+                  </div>
+                </div>
+              )}
+
               {/* DM nudge response */}
               {nudgeText && (
                 <p className="text-sm text-gray-400 italic leading-relaxed border-l-2 border-amber-700/50 pl-3">
@@ -1405,8 +1435,8 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                 </p>
               )}
 
-              {/* Suggestion chips */}
-              {sceneSuggestions.length > 0 && !isBusy && (
+              {/* Suggestion chips — hidden when a roll is pending */}
+              {sceneSuggestions.length > 0 && !isBusy && !activePendingAction && (
                 <div className="flex flex-wrap gap-2">
                   {sceneSuggestions.map((s, i) => (
                     <button
@@ -1424,11 +1454,17 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
               <div className="flex gap-3">
                 <input
                   ref={inputRef}
-                  type="text"
+                  type={activePendingAction?.type === 'roll' ? 'number' : 'text'}
+                  min={activePendingAction?.type === 'roll' ? 1 : undefined}
+                  max={activePendingAction?.type === 'roll' ? 30 : undefined}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handlePlayerSubmit() }}
-                  placeholder={placeholder}
+                  placeholder={
+                    isBusy ? 'The DM is speaking...'
+                    : activePendingAction?.type === 'roll' ? 'Enter your d20 result (1–30)...'
+                    : placeholder
+                  }
                   disabled={isBusy}
                   className="flex-1 bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:opacity-50"
                 />
