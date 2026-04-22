@@ -49,6 +49,7 @@ interface DMResponse {
   state_changes?: unknown[]
   dm_rolls?: unknown[]
   combat_state?: CombatState
+  scene_suggestions?: string[]
 }
 
 interface LogEntry {
@@ -808,6 +809,51 @@ function HistoryDrawer({ log, onClose }: { log: LogEntry[]; onClose: () => void 
 }
 
 // ---------------------------------------------------------------------------
+// Turn Queue Strip
+// ---------------------------------------------------------------------------
+
+function TurnQueueStrip({
+  queue,
+  currentIdx,
+  committed,
+  party,
+}: {
+  queue: string[]
+  currentIdx: number
+  committed: Record<string, string>
+  party: PartyMember[]
+}) {
+  return (
+    <div className="flex-shrink-0 px-6 py-2 bg-gray-900/80 border-t border-gray-800 flex items-center gap-3 overflow-x-auto">
+      <span className="text-xs text-gray-600 uppercase tracking-widest flex-shrink-0">Turn</span>
+      {queue.map((name, idx) => {
+        const member = party.find((m) => m.character_name === name)
+        const isActive = idx === currentIdx
+        const isDone = name in committed
+        return (
+          <div
+            key={name}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs border flex-shrink-0 transition-colors ${
+              isDone
+                ? 'bg-green-900/30 border-green-700/60 text-green-400'
+                : isActive
+                ? 'bg-amber-500/15 border-amber-500 text-amber-300 font-semibold'
+                : 'bg-gray-800 border-gray-700 text-gray-500'
+            }`}
+          >
+            {isDone && <span>✓</span>}
+            <span>{name}</span>
+            {member && (
+              <span className="opacity-50 capitalize ml-0.5">{member.class}</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Narration / DM Screen
 // ---------------------------------------------------------------------------
 
@@ -819,21 +865,26 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const [currentInput, setCurrentInput] = useState('')
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [party, setParty] = useState<PartyMember[]>([])
-  const [selectedCharacter, setSelectedCharacter] = useState<string | null>(null)
   const [combatState, setCombatState] = useState<CombatState | null>(null)
-  const [pendingRoll, setPendingRoll] = useState<ActionRequired | null>(null)
-  const [rollInput, setRollInput] = useState('')
   const [restartKey, setRestartKey] = useState(0)
   const [qrMember, setQrMember] = useState<PartyMember | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  // Turn queue state
+  const [turnQueue, setTurnQueue] = useState<string[]>([])
+  const [currentTurnIdx, setCurrentTurnIdx] = useState(0)
+  const [committedActions, setCommittedActions] = useState<Record<string, string>>({})
+  const [sceneSuggestions, setSceneSuggestions] = useState<string[]>([])
+  const [nudgeText, setNudgeText] = useState<string | null>(null)
+  const [isAskingDM, setIsAskingDM] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const prevIsTypingRef = useRef(false)
   // Ref for typewriter so the keydown handler can skip it
   const typewriterRef = useRef<{
     interval: ReturnType<typeof setInterval> | null
     fullText: string
-    pendingRoll: ActionRequired | null
-  }>({ interval: null, fullText: '', pendingRoll: null })
+    pendingActions: ActionRequired[]
+  }>({ interval: null, fullText: '', pendingActions: [] })
 
   const sessionId = session.session_id
 
@@ -992,11 +1043,6 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
         clearInterval(interval)
         typewriterRef.current.interval = null
         setIsTyping(false)
-        // Show roll modal only after narration finishes typing
-        if (typewriterRef.current.pendingRoll) {
-          setPendingRoll(typewriterRef.current.pendingRoll)
-          typewriterRef.current.pendingRoll = null
-        }
       }
     }, 20)
 
@@ -1007,10 +1053,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     const trimmed = (overrideText ?? input).trim()
     if (!trimmed || isStreaming || isTyping) return
 
-    // UX-02: Prepend selected character name if any
-    const effectiveInput = selectedCharacter
-      ? `[${selectedCharacter}]: ${trimmed}`
-      : trimmed
+    const effectiveInput = trimmed
 
     setInput('')
     setIsStreaming(true)
@@ -1072,11 +1115,9 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                 parsed.response.combat_state.active ? parsed.response.combat_state : null
               )
             }
-            // Queue roll/confirm/choice modal to appear after typewriter finishes
-            const rollAction = parsed.response.actions_required?.find(
-              (a) => a.type === 'roll' || a.type === 'confirm' || a.type === 'choice'
-            )
-            typewriterRef.current.pendingRoll = rollAction ?? null
+            // Store all actions and suggestions for turn queue init after typewriter
+            typewriterRef.current.pendingActions = parsed.response.actions_required ?? []
+            setSceneSuggestions(parsed.response.scene_suggestions ?? [])
             startTypewriter(narration)
           } else if (parsed.error) {
             setLog((prev) => [
@@ -1119,13 +1160,101 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const handleRestart = useCallback(() => {
     setLog([])
     setCombatState(null)
+    setTurnQueue([])
+    setCurrentTurnIdx(0)
+    setCommittedActions({})
+    setSceneSuggestions([])
+    setNudgeText(null)
     setRestartKey(k => k + 1)
   }, [])
 
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') {
+  // Initialize turn queue when typewriter finishes
+  useEffect(() => {
+    const justFinished = prevIsTypingRef.current && !isTyping
+    prevIsTypingRef.current = isTyping
+    if (!justFinished || isStreaming || party.length === 0) return
+
+    const pendingActions = typewriterRef.current.pendingActions
+    const targeted = pendingActions.filter((a) => a.player).map((a) => a.player as string)
+    const queue =
+      targeted.length > 0
+        ? party.filter((m) => targeted.includes(m.character_name)).map((m) => m.character_name)
+        : [...party].sort(() => Math.random() - 0.5).map((m) => m.character_name)
+
+    setTurnQueue(queue)
+    setCurrentTurnIdx(0)
+    setCommittedActions({})
+    setNudgeText(null)
+    typewriterRef.current.pendingActions = []
+  }, [isTyping, isStreaming, party]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handlePlayerSubmit() {
+    if (!input.trim() || isStreaming || isTyping) return
+
+    const currentPlayer = turnQueue[currentTurnIdx]
+
+    // No active turn queue — direct submit
+    if (!currentPlayer || turnQueue.length === 0) {
       handleSubmit()
+      return
     }
+
+    const effectiveInput = `[${currentPlayer}]: ${input.trim()}`
+    const newCommitted = { ...committedActions, [currentPlayer]: effectiveInput }
+    setInput('')
+    setNudgeText(null)
+    setCommittedActions(newCommitted)
+
+    const allDone = turnQueue.every((p) => p in newCommitted)
+    if (allDone) {
+      const combined = turnQueue.map((p) => newCommitted[p]).join('\n')
+      setTurnQueue([])
+      setCurrentTurnIdx(0)
+      setCommittedActions({})
+      setSceneSuggestions([])
+      handleSubmit(combined)
+    } else {
+      setCurrentTurnIdx((prev) => prev + 1)
+    }
+  }
+
+  async function handleAskDM() {
+    const currentPlayer = turnQueue[currentTurnIdx]
+    if (!currentPlayer || isStreaming || isTyping || isAskingDM) return
+    setIsAskingDM(true)
+    setNudgeText(null)
+
+    try {
+      const res = await fetch('/api/dm-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          player_input: `[${currentPlayer}] aside: Just a nudge — one sentence, narrator voice. What might ${currentPlayer} notice or want to consider right now? Don't decide for them.`,
+          session_id: sessionId,
+        }),
+      })
+      if (!res.ok || !res.body) throw new Error()
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const parts = buf.split('\n\n')
+        buf = parts.pop() ?? ''
+        for (const part of parts) {
+          const line = part.trim()
+          if (!line.startsWith('data: ')) continue
+          try {
+            const p = JSON.parse(line.slice('data: '.length))
+            if (p.done && p.response?.narration) setNudgeText(p.response.narration)
+          } catch { /* */ }
+        }
+      }
+    } catch { /* silent */ }
+    setIsAskingDM(false)
   }
 
   const isBusy = isStreaming || isTyping
@@ -1226,66 +1355,94 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
         <QRPlayerModal member={qrMember} onClose={() => setQrMember(null)} />
       )}
 
-      {/* Action prompt modal (roll / confirm / choice) */}
-      {pendingRoll && (
-        <RollPromptModal
-          action={pendingRoll}
-          onSubmitText={(text) => {
-            setPendingRoll(null)
-            setRollInput('')
-            handleSubmit(text)
-          }}
-          onDismiss={() => {
-            setPendingRoll(null)
-            setRollInput('')
-          }}
+      {/* Turn queue strip */}
+      {turnQueue.length > 0 && (
+        <TurnQueueStrip
+          queue={turnQueue}
+          currentIdx={currentTurnIdx}
+          committed={committedActions}
+          party={party}
         />
       )}
 
-      {/* Fixed bottom input bar */}
+      {/* Input bar */}
       <footer className="flex-shrink-0 px-6 py-4 bg-gray-900 border-t border-gray-800">
-        {/* UX-02: Character selector row */}
-        {party.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3 max-w-4xl mx-auto">
-            {party.map((member) => (
-              <button
-                key={member.slot}
-                onClick={() => {
-                  setSelectedCharacter(
-                    selectedCharacter === member.character_name ? null : member.character_name
-                  )
-                  setTimeout(() => inputRef.current?.focus(), 0)
-                }}
-                className={`text-xs px-2 py-1 rounded transition-colors border ${
-                  selectedCharacter === member.character_name
-                    ? 'bg-amber-500 border-amber-400 text-gray-900 font-semibold'
-                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200'
-                }`}
-              >
-                {member.character_name}
-              </button>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const activeMember = party.find((m) => m.character_name === turnQueue[currentTurnIdx])
+          const activePlayerName = activeMember?.character_name ?? null
+          const activePlayerClass = activeMember?.class ?? null
+          const placeholder = isBusy
+            ? 'The DM is speaking...'
+            : activePlayerName
+            ? `What does ${activePlayerName} do...`
+            : 'What do you do?'
 
-        <div className="flex gap-3 max-w-4xl mx-auto">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={isBusy ? 'The DM is speaking...' : 'What do you do?'}
-            className="flex-1 bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-          />
-          <button
-            onClick={() => handleSubmit()}
-            disabled={isBusy || input.trim() === ''}
-            className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Send
-          </button>
-        </div>
+          return (
+            <div className="max-w-4xl mx-auto space-y-3">
+              {/* Active player header */}
+              {activePlayerName && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-amber-300">{activePlayerName}</span>
+                    {activePlayerClass && (
+                      <span className="text-xs text-gray-500 capitalize">{activePlayerClass}</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleAskDM}
+                    disabled={isBusy || isAskingDM}
+                    className="text-xs text-gray-500 hover:text-amber-400 transition-colors disabled:opacity-40"
+                  >
+                    {isAskingDM ? 'asking...' : 'Ask the DM →'}
+                  </button>
+                </div>
+              )}
+
+              {/* DM nudge response */}
+              {nudgeText && (
+                <p className="text-sm text-gray-400 italic leading-relaxed border-l-2 border-amber-700/50 pl-3">
+                  {nudgeText}
+                </p>
+              )}
+
+              {/* Suggestion chips */}
+              {sceneSuggestions.length > 0 && !isBusy && (
+                <div className="flex flex-wrap gap-2">
+                  {sceneSuggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setInput(s); inputRef.current?.focus() }}
+                      className="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 text-gray-400 hover:text-gray-200 rounded-full transition-colors"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Input row */}
+              <div className="flex gap-3">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handlePlayerSubmit() }}
+                  placeholder={placeholder}
+                  disabled={isBusy}
+                  className="flex-1 bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:opacity-50"
+                />
+                <button
+                  onClick={handlePlayerSubmit}
+                  disabled={isBusy || !input.trim()}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          )
+        })()}
       </footer>
     </div>
   )

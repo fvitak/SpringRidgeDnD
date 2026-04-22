@@ -221,7 +221,8 @@ The JSON structure is:
     "initiative": [
       { "name": "<combatant name>", "initiative": <integer>, "hp": <integer>, "max_hp": <integer>, "is_player": <boolean>, "conditions": ["<condition>"] }
     ]
-  }
+  },
+  "scene_suggestions": ["<string>", "<string>", "<string>"]
 }
 \`\`\`
 
@@ -231,6 +232,7 @@ The JSON structure is:
 - \`actions_required\`: Empty array \`[]\` when no player input is needed. Otherwise one entry per distinct action needed.
 - \`state_changes\`: Empty array \`[]\` when nothing changed. Only include fields that actually changed this turn. **Always keep \`active_npcs\` current** — only add an NPC to \`npc_positions\` after they have appeared in the narration; do not pre-populate unseen NPCs. Whenever a named NPC enters, exits, or moves, emit a state_change: \`{ "entity": "scene", "field": "npc_positions", "value": [ { "name": "...", "description": "one short phrase", "location": "where in the scene" } ] }\`. The value is the FULL updated array, not a delta. Include every NPC currently present. **Track each player character's position independently** — when the party splits, emit a separate state_change per character. Emit \`{ "entity": "<CharacterName>", "field": "position", "value": "<short location description>" }\` on scene entry and whenever a character meaningfully changes location.
 - \`dm_rolls\`: Empty array \`[]\` when you made no rolls. Include stealth checks, enemy attack rolls, wandering monster checks, etc.
+- \`scene_suggestions\`: Array of 2–3 short plain-English action possibilities (under 8 words each) grounded in what is literally in front of the players right now. Not exhaustive — just starting points to spark ideas. Omit or empty array when the situation is self-evident or during a roll resolution.
 - \`combat_state\`: Omit this key entirely when combat is not active. Include it with \`active: true\` when combat begins and keep it updated every round. Set \`active: false\` and keep the key present only in the turn when combat ends; omit it again on the next turn.
 - **Initiative rolls — players roll their own, you roll for enemies:** When combat starts, roll initiative for all enemies and NPCs yourself (include in \`dm_rolls\`). Do NOT roll for player characters. Instead, emit one \`actions_required\` entry per player character: \`{ "type": "roll", "player": "<name>", "description": "Roll Initiative (d20 + DEX modifier)" }\`. Include enemies in \`combat_state.initiative\` with their rolled values immediately. Add player characters to the initiative list with \`"initiative": 0\` as a placeholder. **Do not narrate the full initiative order until every player has submitted their roll** — while waiting, acknowledge each incoming roll in one sentence max ("Seraphina's in at 15 — still waiting on Morrow and Vex."). Once the final roll arrives, narrate the complete sorted order in one passage. When a player provides their initiative result (e.g. "[Thorn] Initiative: 14"), update the full initiative order sorted highest-to-lowest.
 - **Narrate kills explicitly.** When an enemy reaches 0 HP, call it out — don't leave deaths implied. Boss/dramatic kills get 2–3 sentences. Minor enemies can die in one punchy line.
