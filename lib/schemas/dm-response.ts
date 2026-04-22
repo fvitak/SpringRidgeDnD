@@ -49,6 +49,7 @@ export const dmResponseSchema = z.object({
   state_changes: z.array(stateChangeSchema).default([]),
   dm_rolls: z.array(dmRollSchema).default([]),
   combat_state: combatStateSchema.optional(),
+  scene_suggestions: z.array(z.string()).max(3).optional().default([]),
   pending_roll: z.object({
     player: z.string(),
     type: z.string(),
