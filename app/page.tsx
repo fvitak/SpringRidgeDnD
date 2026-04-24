@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, KeyboardEvent, Suspense } from 'react'
+import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import QRCode from 'qrcode'
 
@@ -300,41 +301,46 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-950 flex items-center justify-center p-6 z-50">
-      <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-lg p-8 space-y-8">
-        {/* Title */}
-        <div className="text-center space-y-1">
-          <h1 className="text-3xl font-bold font-serif tracking-wide">
-            <span className="text-gray-100">Gr</span><span className="text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]">AI</span><span className="text-gray-100">l</span>
-          </h1>
-          <p className="text-gray-400 text-sm">AI Adventure Guide</p>
-        </div>
+    <div className="relative min-h-screen flex flex-col items-center justify-end pb-12 px-4">
+      {/* Background artwork */}
+      <Image
+        src="/grail-bg.png"
+        alt=""
+        fill
+        priority
+        className="object-cover object-center -z-10"
+      />
+      {/* Ambient darkening overlay */}
+      <div className="fixed inset-0 bg-black/20 -z-[5]" />
 
-        {/* Adventure name */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-300">Adventure</label>
+      {/* Frosted card — anchored to bottom */}
+      <div className="w-full max-w-sm bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl p-6 flex flex-col gap-5">
+
+        {/* Adventure selector */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-white text-sm font-medium">Adventure</label>
           <select
             value={adventureName}
             onChange={(e) => setAdventureName(e.target.value)}
-            className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            className="w-full bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm min-h-[44px] focus:outline-none focus:ring-2 focus:ring-amber-500"
           >
-            <option value="The Wild Sheep Chase">The Wild Sheep Chase</option>
-            <option value="Random Encounter">Random Encounter (Combat Test)</option>
+            <option className="bg-gray-900" value="The Wild Sheep Chase">The Wild Sheep Chase</option>
+            <option className="bg-gray-900" value="Random Encounter">Random Encounter (Combat Test)</option>
           </select>
         </div>
 
         {/* Player count */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-300">Number of Players</label>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-white text-sm font-medium">Number of Players</label>
           <div className="grid grid-cols-3 gap-3">
             {([2, 3, 4] as const).map((n) => (
               <button
                 key={n}
                 onClick={() => setPlayerCount(n)}
-                className={`rounded-xl border-2 py-5 text-2xl font-bold transition-all ${
+                className={`rounded-xl border-2 py-3 text-2xl font-bold min-h-[44px] transition-all ${
                   playerCount === n
-                    ? 'border-amber-500 bg-amber-500/10 text-amber-400 shadow-lg shadow-amber-500/20'
-                    : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-500 hover:text-gray-200'
+                    ? 'border-amber-500 bg-amber-500/20 text-amber-300 shadow-lg shadow-amber-500/20'
+                    : 'border-white/20 bg-white/10 text-white/60 hover:border-white/40 hover:text-white'
                 }`}
               >
                 {n}
@@ -352,7 +358,7 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
         <button
           onClick={handleBeginAdventure}
           disabled={isCreating || !adventureName.trim()}
-          className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-colors shadow-lg"
+          className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-colors shadow-lg min-h-[44px]"
         >
           {isCreating ? 'Creating adventure...' : 'Begin Adventure'}
         </button>
