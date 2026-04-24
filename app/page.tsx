@@ -307,7 +307,7 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
           <h1 className="text-3xl font-bold text-amber-400 font-serif tracking-wide">
             Spring Ridge
           </h1>
-          <p className="text-gray-400 text-sm">AI Dungeon Master</p>
+          <p className="text-gray-400 text-sm">AI Adventure Guide</p>
         </div>
 
         {/* Adventure name */}

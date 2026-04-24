@@ -1,3 +1,3 @@
-# Spring Ridge D&D
+# GRAIL
 
-AI Dungeon Master powered by Claude. Built with Next.js 14, Supabase, and Tailwind CSS.
+AI Guide powered by Claude. Built with Next.js 14, Supabase, and Tailwind CSS.
