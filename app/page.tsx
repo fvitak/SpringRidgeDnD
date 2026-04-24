@@ -304,8 +304,8 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
       <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-full max-w-lg p-8 space-y-8">
         {/* Title */}
         <div className="text-center space-y-1">
-          <h1 className="text-3xl font-bold text-amber-400 font-serif tracking-wide">
-            Spring Ridge
+          <h1 className="text-3xl font-bold font-serif tracking-wide">
+            <span className="text-gray-100">Gr</span><span className="text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]">AI</span><span className="text-gray-100">l</span>
           </h1>
           <p className="text-gray-400 text-sm">AI Adventure Guide</p>
         </div>
@@ -854,7 +854,7 @@ function TurnQueueStrip({
 }
 
 // ---------------------------------------------------------------------------
-// Narration / DM Screen
+// Narration / Guide Screen
 // ---------------------------------------------------------------------------
 
 function NarrationScreen({ session }: { session: SessionInfo }) {
@@ -1278,7 +1278,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
       <header className="flex-shrink-0 px-6 py-3 bg-gray-900 border-b border-gray-800 shadow-md flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold tracking-wide text-amber-400">
-            {session.name} &mdash; DM Screen
+            {session.name} &mdash; Guide Screen
           </h1>
           {session.name === 'Random Encounter' && (
             <button
@@ -1343,7 +1343,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                 {currentInput}
               </p>
               <div className="flex items-center gap-1 text-amber-500 text-sm italic">
-                <span>The DM is thinking</span>
+                <span>The Guide is thinking...</span>
                 <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
                 <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
                 <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
@@ -1385,7 +1385,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
           const activePlayerName = activeMember?.character_name ?? null
           const activePlayerClass = activeMember?.class ?? null
           const placeholder = isBusy
-            ? 'The DM is speaking...'
+            ? 'The Guide is speaking...'
             : activePlayerName
             ? `What does ${activePlayerName} do...`
             : 'What do you do?'
@@ -1461,7 +1461,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handlePlayerSubmit() }}
                   placeholder={
-                    isBusy ? 'The DM is speaking...'
+                    isBusy ? 'The Guide is speaking...'
                     : activePendingAction?.type === 'roll' ? 'Enter your d20 result (1–30)...'
                     : placeholder
                   }
