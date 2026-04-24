@@ -25,7 +25,7 @@ export default async function JoinPage({ params, searchParams }: PageProps) {
       <div className="flex items-center justify-center h-screen bg-gray-950 text-gray-100 font-serif">
         <div className="text-center space-y-3 px-6">
           <p className="text-4xl">🗺️</p>
-          <h1 className="text-2xl font-bold text-amber-400">Session Not Found</h1>
+          <h1 className="text-2xl font-bold text-purple-400">Session Not Found</h1>
           <p className="text-gray-400">This adventure link is invalid or has expired.</p>
         </div>
       </div>
@@ -38,7 +38,7 @@ export default async function JoinPage({ params, searchParams }: PageProps) {
       <div className="flex items-center justify-center h-screen bg-gray-950 text-gray-100 font-serif">
         <div className="text-center space-y-3 px-6">
           <p className="text-4xl">❓</p>
-          <h1 className="text-2xl font-bold text-amber-400">Invalid Slot</h1>
+          <h1 className="text-2xl font-bold text-purple-400">Invalid Slot</h1>
           <p className="text-gray-400">Ask for a valid QR code from the shared screen.</p>
         </div>
       </div>
@@ -58,7 +58,7 @@ export default async function JoinPage({ params, searchParams }: PageProps) {
       <div className="flex items-center justify-center h-screen bg-gray-950 text-gray-100 font-serif">
         <div className="text-center space-y-3 px-6">
           <p className="text-4xl">🪑</p>
-          <h1 className="text-2xl font-bold text-amber-400">Seat Taken</h1>
+          <h1 className="text-2xl font-bold text-purple-400">Seat Taken</h1>
           <p className="text-gray-400">
             This seat is taken — ask for a different QR code.
           </p>

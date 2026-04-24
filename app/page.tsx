@@ -172,13 +172,13 @@ function PartySidebar({
         return (
           <div
             key={member.slot}
-            className="bg-gray-800 rounded-xl p-3 space-y-2 border border-gray-700 cursor-pointer hover:border-amber-600 transition-colors group"
+            className="bg-gray-800 rounded-xl p-3 space-y-2 border border-gray-700 cursor-pointer hover:border-purple-600 transition-colors group"
             onClick={() => onShowQR(member)}
             title="Click to show player QR code"
           >
             {/* Name + intox */}
             <div className="flex items-center justify-between gap-1">
-              <span className="text-sm font-semibold text-gray-100 truncate leading-tight group-hover:text-amber-400 transition-colors">
+              <span className="text-sm font-semibold text-gray-100 truncate leading-tight group-hover:text-purple-400 transition-colors">
                 {member.character_name}
               </span>
               {intox && (
@@ -246,7 +246,7 @@ function PartySidebar({
                 className="w-full text-left px-2 py-2 rounded-lg hover:bg-gray-800 transition-colors group mb-1"
                 title={`Insert "${npc.name}" at cursor`}
               >
-                <span className="text-sm font-medium text-gray-200 group-hover:text-amber-400 transition-colors block leading-tight">
+                <span className="text-sm font-medium text-gray-200 group-hover:text-purple-400 transition-colors block leading-tight">
                   {npc.name}
                 </span>
                 {npc.description && (
@@ -322,7 +322,7 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
           <select
             value={adventureName}
             onChange={(e) => setAdventureName(e.target.value)}
-            className="w-full bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm min-h-[44px] focus:outline-none focus:ring-2 focus:ring-amber-500"
+            className="w-full bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm min-h-[44px] focus:outline-none focus:ring-2 focus:ring-purple-500"
           >
             <option className="bg-gray-900" value="The Wild Sheep Chase">The Wild Sheep Chase</option>
             <option className="bg-gray-900" value="Random Encounter">Random Encounter (Combat Test)</option>
@@ -339,7 +339,7 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
                 onClick={() => setPlayerCount(n)}
                 className={`rounded-xl border-2 py-3 text-2xl font-bold min-h-[44px] transition-all ${
                   playerCount === n
-                    ? 'border-amber-500 bg-amber-500/20 text-amber-300 shadow-lg shadow-amber-500/20'
+                    ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/20'
                     : 'border-white/20 bg-white/10 text-white/60 hover:border-white/40 hover:text-white'
                 }`}
               >
@@ -358,7 +358,7 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
         <button
           onClick={handleBeginAdventure}
           disabled={isCreating || !adventureName.trim()}
-          className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-colors shadow-lg min-h-[44px]"
+          className="w-full py-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-colors shadow-lg min-h-[44px]"
         >
           {isCreating ? 'Creating adventure...' : 'Begin Adventure'}
         </button>
@@ -490,9 +490,9 @@ function LobbyScreen({
     <div className="flex flex-col h-screen bg-gray-950 text-gray-100 font-serif overflow-hidden">
       {/* Header */}
       <header className="flex-shrink-0 px-6 py-4 bg-gray-900 border-b border-gray-800 text-center">
-        <h1 className="text-2xl font-bold text-amber-400 tracking-wide">{session.name}</h1>
+        <h1 className="text-2xl font-bold text-purple-400 tracking-wide">{session.name}</h1>
         <p className="text-gray-400 text-sm mt-1">
-          Click <span className="text-amber-400 font-medium">Create Character</span> for each player, then start the adventure
+          Click <span className="text-purple-400 font-medium">Create Character</span> for each player, then start the adventure
         </p>
       </header>
 
@@ -519,7 +519,7 @@ function LobbyScreen({
                 key={slot}
                 className={`flex flex-col items-center gap-3 p-4 rounded-2xl border-2 transition-colors ${
                   joined
-                    ? 'border-amber-500 bg-amber-500/10'
+                    ? 'border-purple-500 bg-purple-500/10'
                     : 'border-gray-700 bg-gray-900'
                 }`}
               >
@@ -535,13 +535,13 @@ function LobbyScreen({
 
                 <div className="text-center w-full">
                   {joined ? (
-                    <p className="text-amber-400 font-semibold text-sm">
+                    <p className="text-purple-400 font-semibold text-sm">
                       {playerName ?? 'Joined'}
                     </p>
                   ) : (
                     <a
                       href={`/character-create?session_id=${session.session_id}&slot=${slot}&count=${session.player_count}`}
-                      className="inline-block w-full py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-sm rounded-lg transition-colors text-center"
+                      className="inline-block w-full py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm rounded-lg transition-colors text-center"
                     >
                       Create Character
                     </a>
@@ -561,7 +561,7 @@ function LobbyScreen({
         <button
           onClick={onStartAdventure}
           disabled={joinedCount === 0}
-          className="px-8 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors shadow-lg"
+          className="px-8 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors shadow-lg"
         >
           Start Adventure
         </button>
@@ -584,7 +584,7 @@ function InitiativeTracker({ combatState }: { combatState: CombatState }) {
           ⚔ Combat
         </h2>
         {combatState.round !== undefined && (
-          <span className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-700 rounded px-1.5 py-0.5">
+          <span className="text-xs font-bold text-purple-400 bg-purple-500/10 border border-purple-700 rounded px-1.5 py-0.5">
             Round {combatState.round}
           </span>
         )}
@@ -599,7 +599,7 @@ function InitiativeTracker({ combatState }: { combatState: CombatState }) {
               key={`${c.name}-${idx}`}
               className={`rounded-lg p-2 border transition-colors ${
                 isActive
-                  ? 'bg-amber-500/10 border-amber-600'
+                  ? 'bg-purple-500/10 border-purple-600'
                   : 'bg-gray-800 border-gray-700'
               }`}
             >
@@ -609,7 +609,7 @@ function InitiativeTracker({ combatState }: { combatState: CombatState }) {
                 </span>
                 <span
                   className={`text-xs font-semibold truncate flex-1 ${
-                    isActive ? 'text-amber-300' : 'text-gray-200'
+                    isActive ? 'text-purple-300' : 'text-gray-200'
                   }`}
                 >
                   {c.name}
@@ -689,10 +689,10 @@ function RollPromptModal({
   if (action.type === 'roll') {
     return (
       <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-        <div className="bg-gray-900 border border-amber-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div className="bg-gray-900 border border-purple-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
           <div className="text-center">
             <p className="text-3xl mb-1">🎲</p>
-            <h2 className="text-xl font-bold text-amber-400 tracking-wide uppercase">Roll Check!</h2>
+            <h2 className="text-xl font-bold text-purple-400 tracking-wide uppercase">Roll Check!</h2>
           </div>
           {action.player && <p className="text-center text-sm font-semibold text-gray-300">{action.player}</p>}
           <p className="text-gray-200 text-sm text-center leading-relaxed">{action.description}</p>
@@ -705,9 +705,9 @@ function RollPromptModal({
             onChange={(e) => setRollValue(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') submitRoll(); if (e.key === 'Escape') onDismiss() }}
             placeholder="1–30"
-            className="w-full bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-3 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            className="w-full bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-3 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           />
-          <button onClick={submitRoll} disabled={!isRollValid} className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl transition-colors shadow-lg">
+          <button onClick={submitRoll} disabled={!isRollValid} className="w-full py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl transition-colors shadow-lg">
             Submit Roll
           </button>
           <div className="text-center">
@@ -780,7 +780,7 @@ function HistoryDrawer({ log, onClose }: { log: LogEntry[]; onClose: () => void 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 flex-shrink-0">
-          <h2 className="text-sm font-bold text-amber-400 uppercase tracking-widest">Session Log</h2>
+          <h2 className="text-sm font-bold text-purple-400 uppercase tracking-widest">Session Log</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-xl leading-none">✕</button>
         </div>
 
@@ -843,7 +843,7 @@ function TurnQueueStrip({
               isDone
                 ? 'bg-green-900/30 border-green-700/60 text-green-400'
                 : isActive
-                ? 'bg-amber-500/15 border-amber-500 text-amber-300 font-semibold'
+                ? 'bg-purple-500/15 border-purple-500 text-purple-300 font-semibold'
                 : 'bg-gray-800 border-gray-700 text-gray-500'
             }`}
           >
@@ -1283,7 +1283,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
       {/* Header */}
       <header className="flex-shrink-0 px-6 py-3 bg-gray-900 border-b border-gray-800 shadow-md flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold tracking-wide text-amber-400">
+          <h1 className="text-lg font-semibold tracking-wide text-purple-400">
             {session.name} &mdash; Guide Screen
           </h1>
           {session.name === 'Random Encounter' && (
@@ -1297,7 +1297,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
         </div>
         <button
           onClick={() => setShowHistory(true)}
-          className="text-xs text-gray-400 hover:text-amber-400 border border-gray-700 hover:border-amber-700 rounded px-2.5 py-1 transition-colors"
+          className="text-xs text-gray-400 hover:text-purple-400 border border-gray-700 hover:border-purple-700 rounded px-2.5 py-1 transition-colors"
           title="View session history"
         >
           📜 History
@@ -1334,7 +1334,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                   <p className="text-gray-100 text-lg leading-relaxed whitespace-pre-wrap">
                     {entry.narration}
                     {showCursor && (
-                      <span className="inline-block w-2 h-5 bg-amber-400 ml-1 animate-pulse align-middle" />
+                      <span className="inline-block w-2 h-5 bg-purple-400 ml-1 animate-pulse align-middle" />
                     )}
                   </p>
                 )}
@@ -1348,7 +1348,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                 <span className="mr-2 text-gray-600">&gt;</span>
                 {currentInput}
               </p>
-              <div className="flex items-center gap-1 text-amber-500 text-sm italic">
+              <div className="flex items-center gap-1 text-purple-500 text-sm italic">
                 <span>The Guide is thinking...</span>
                 <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
                 <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
@@ -1404,7 +1404,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
               {activePlayerName && (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-amber-300">{activePlayerName}</span>
+                    <span className="text-sm font-semibold text-purple-300">{activePlayerName}</span>
                     {activePlayerClass && (
                       <span className="text-xs text-gray-500 capitalize">{activePlayerClass}</span>
                     )}
@@ -1412,7 +1412,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                   <button
                     onClick={handleAskDM}
                     disabled={isBusy || isAskingDM}
-                    className="text-xs text-gray-500 hover:text-amber-400 transition-colors disabled:opacity-40"
+                    className="text-xs text-gray-500 hover:text-purple-400 transition-colors disabled:opacity-40"
                   >
                     {isAskingDM ? 'asking...' : 'Ask the DM →'}
                   </button>
@@ -1421,12 +1421,12 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
 
               {/* Pending action banner */}
               {activePendingAction && !isBusy && (
-                <div className="flex items-start gap-3 px-3 py-2.5 bg-gray-800/80 border border-amber-700/50 rounded-lg">
+                <div className="flex items-start gap-3 px-3 py-2.5 bg-gray-800/80 border border-purple-700/50 rounded-lg">
                   <span className="text-lg leading-none mt-0.5">
                     {activePendingAction.type === 'roll' ? '🎲' : activePendingAction.type === 'confirm' ? '❓' : '⚡'}
                   </span>
                   <div>
-                    <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">
+                    <p className="text-xs font-semibold text-purple-400 uppercase tracking-wide">
                       {activePendingAction.type === 'roll' ? 'Roll 1d20' : activePendingAction.type === 'confirm' ? 'Clarification needed' : 'Decision needed'}
                     </p>
                     <p className="text-sm text-gray-200 mt-0.5">{activePendingAction.description}</p>
@@ -1436,7 +1436,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
 
               {/* DM nudge response */}
               {nudgeText && (
-                <p className="text-sm text-gray-400 italic leading-relaxed border-l-2 border-amber-700/50 pl-3">
+                <p className="text-sm text-gray-400 italic leading-relaxed border-l-2 border-purple-700/50 pl-3">
                   {nudgeText}
                 </p>
               )}
@@ -1472,12 +1472,12 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                     : placeholder
                   }
                   disabled={isBusy}
-                  className="flex-1 bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:opacity-50"
+                  className="flex-1 bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50"
                 />
                 <button
                   onClick={handlePlayerSubmit}
                   disabled={isBusy || !input.trim()}
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Send
                 </button>

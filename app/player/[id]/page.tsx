@@ -226,7 +226,7 @@ function ActionReferencePanel({ character, onClose }: { character: Character; on
             {classActions.map((a) => (
               <div key={a.name} className="bg-gray-800 rounded-xl p-3 border border-gray-700">
                 <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-sm font-bold text-amber-300">{a.name}</span>
+                  <span className="text-sm font-bold text-purple-300">{a.name}</span>
                   <div className="text-right text-xs text-gray-500">
                     <div>{a.cost}</div>
                     {a.range !== '—' && <div>{a.range}</div>}
@@ -331,10 +331,10 @@ function LevelUpModal({
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-start justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-gray-900 border-2 border-amber-500 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5 my-4">
+      <div className="bg-gray-900 border-2 border-purple-500 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5 my-4">
         <div className="text-center">
           <p className="text-4xl mb-1">⬆</p>
-          <h2 className="text-2xl font-bold text-amber-400">Level {newLevel}!</h2>
+          <h2 className="text-2xl font-bold text-purple-400">Level {newLevel}!</h2>
           <p className="text-gray-400 text-sm mt-1 capitalize">{character.class}</p>
         </div>
 
@@ -344,7 +344,7 @@ function LevelUpModal({
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">New Features</p>
             {features.map((f) => (
               <div key={f.name} className="bg-gray-800 rounded-xl p-3 border border-gray-700">
-                <p className="text-sm font-bold text-amber-300">{f.name}</p>
+                <p className="text-sm font-bold text-purple-300">{f.name}</p>
                 <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{f.description}</p>
               </div>
             ))}
@@ -372,7 +372,7 @@ function LevelUpModal({
             <button
               onClick={() => setHpMode('average')}
               className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                hpMode === 'average' ? 'bg-amber-700 border-amber-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'
+                hpMode === 'average' ? 'bg-purple-700 border-purple-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'
               }`}
             >
               Average ({average})
@@ -380,7 +380,7 @@ function LevelUpModal({
             <button
               onClick={() => setHpMode('roll')}
               className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                hpMode === 'roll' ? 'bg-amber-700 border-amber-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'
+                hpMode === 'roll' ? 'bg-purple-700 border-purple-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'
               }`}
             >
               Roll d{hitDie}
@@ -394,7 +394,7 @@ function LevelUpModal({
               placeholder={`1–${hitDie}`}
               value={hpInput}
               onChange={(e) => { setHpInput(e.target.value); setRolledHp(Number(e.target.value)) }}
-              className="w-full bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-2 text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="w-full bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-4 py-2 text-center text-lg font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
           )}
           <p className="text-xs text-gray-500 text-center">
@@ -410,7 +410,7 @@ function LevelUpModal({
               <button
                 onClick={() => setAsiMode('one')}
                 className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                  asiMode === 'one' ? 'bg-amber-700 border-amber-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'
+                  asiMode === 'one' ? 'bg-purple-700 border-purple-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'
                 }`}
               >
                 +2 to one
@@ -418,7 +418,7 @@ function LevelUpModal({
               <button
                 onClick={() => setAsiMode('two')}
                 className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                  asiMode === 'two' ? 'bg-amber-700 border-amber-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'
+                  asiMode === 'two' ? 'bg-purple-700 border-purple-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-400'
                 }`}
               >
                 +1 to two
@@ -450,7 +450,7 @@ function LevelUpModal({
         <button
           onClick={handleConfirm}
           disabled={!canSubmit || submitting}
-          className="w-full py-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors"
+          className="w-full py-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors"
         >
           {submitting ? 'Applying...' : `Confirm Level ${newLevel}`}
         </button>
@@ -513,7 +513,7 @@ function InventoryPanel({ inventory, characterId }: { inventory: InventoryItem[]
           {localInventory.map((item, idx) => {
             const isOpen = expanded === idx
             return (
-              <div key={idx} className={`rounded-xl border transition-colors ${item.equipped ? 'border-amber-700 bg-amber-900/10' : 'border-gray-700 bg-gray-800'}`}>
+              <div key={idx} className={`rounded-xl border transition-colors ${item.equipped ? 'border-purple-700 bg-purple-900/10' : 'border-gray-700 bg-gray-800'}`}>
                 {/* Row — tap to expand */}
                 <button
                   className="w-full flex items-center justify-between px-3 py-2.5 text-left"
@@ -521,7 +521,7 @@ function InventoryPanel({ inventory, characterId }: { inventory: InventoryItem[]
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     {item.equipped && (
-                      <span className="text-amber-400 text-xs flex-shrink-0">E</span>
+                      <span className="text-purple-400 text-xs flex-shrink-0">E</span>
                     )}
                     <span className="text-sm text-gray-200 truncate">{item.name}</span>
                   </div>
@@ -549,7 +549,7 @@ function InventoryPanel({ inventory, characterId }: { inventory: InventoryItem[]
                       onClick={() => toggleEquip(idx)}
                       className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
                         item.equipped
-                          ? 'bg-amber-700 text-amber-100 hover:bg-amber-600'
+                          ? 'bg-purple-700 text-purple-100 hover:bg-purple-600'
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
                     >
@@ -690,7 +690,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-amber-400 text-lg animate-pulse">Loading character...</p>
+        <p className="text-purple-400 text-lg animate-pulse">Loading character...</p>
       </div>
     )
   }
@@ -732,10 +732,10 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       {/* ------------------------------------------------------------------ */}
       {/* 1. Header bar                                                        */}
       {/* ------------------------------------------------------------------ */}
-      <header className="bg-gray-900 border-b border-amber-900/50 px-4 py-4 sticky top-0 z-10">
+      <header className="bg-gray-900 border-b border-purple-900/50 px-4 py-4 sticky top-0 z-10">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-amber-400 truncate leading-tight">
+            <h1 className="text-2xl font-bold text-purple-400 truncate leading-tight">
               {character.character_name}
             </h1>
             <p className="text-sm text-gray-400 mt-0.5">
@@ -744,7 +744,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
             </p>
           </div>
           <div className="flex-shrink-0">
-            <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-amber-700 text-amber-100 font-bold text-sm border-2 border-amber-500">
+            <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-purple-700 text-purple-100 font-bold text-sm border-2 border-purple-500">
               Lv{character.level}
             </span>
           </div>
@@ -773,7 +773,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         {!showLevelUp && xpForNextLevel(character.level) !== null && character.xp >= (xpForNextLevel(character.level) ?? Infinity) && (
           <button
             onClick={() => { setLevelUpDismissed(false); setShowLevelUp(true) }}
-            className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-2xl text-sm animate-pulse transition-colors"
+            className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-2xl text-sm animate-pulse transition-colors"
           >
             ⬆ Level Up Available — Tap to Advance
           </button>
@@ -876,7 +876,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
                   key={key}
                   className="flex flex-col items-center bg-gray-800 rounded-xl py-3 px-1"
                 >
-                  <span className="text-xs font-bold text-amber-500 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-purple-500 uppercase tracking-wider">
                     {label}
                   </span>
                   <span className="text-2xl font-bold text-white mt-1">{score}</span>
@@ -891,11 +891,11 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
         {/* 4. AC badge                                                        */}
         {/* ---------------------------------------------------------------- */}
         <section className="flex justify-center">
-          <div className="flex flex-col items-center bg-gray-900 border-2 border-amber-600 rounded-2xl px-8 py-4">
-            <span className="text-xs font-bold uppercase tracking-widest text-amber-500">
+          <div className="flex flex-col items-center bg-gray-900 border-2 border-purple-600 rounded-2xl px-8 py-4">
+            <span className="text-xs font-bold uppercase tracking-widest text-purple-500">
               Armor Class
             </span>
-            <span className="text-5xl font-extrabold text-amber-300 mt-1">{character.ac}</span>
+            <span className="text-5xl font-extrabold text-purple-300 mt-1">{character.ac}</span>
           </div>
         </section>
 
@@ -936,16 +936,16 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
                   <div className="flex items-center gap-2">
                     <span
                       className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                        isProficient ? 'bg-amber-400' : 'bg-gray-700 border border-gray-600'
+                        isProficient ? 'bg-purple-400' : 'bg-gray-700 border border-gray-600'
                       }`}
                     />
-                    <span className={`text-sm ${isProficient ? 'text-amber-300' : 'text-gray-300'}`}>
+                    <span className={`text-sm ${isProficient ? 'text-purple-300' : 'text-gray-300'}`}>
                       {label}
                     </span>
                   </div>
                   <span
                     className={`text-sm font-mono font-semibold ${
-                      isProficient ? 'text-amber-300' : 'text-gray-400'
+                      isProficient ? 'text-purple-300' : 'text-gray-400'
                     }`}
                   >
                     {signedNum(value)}
@@ -971,16 +971,16 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
                   <div className="flex items-center gap-2">
                     <span
                       className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                        isProficient ? 'bg-amber-400' : 'bg-gray-700 border border-gray-600'
+                        isProficient ? 'bg-purple-400' : 'bg-gray-700 border border-gray-600'
                       }`}
                     />
-                    <span className={`text-sm ${isProficient ? 'text-amber-300 font-medium' : 'text-gray-300'}`}>
+                    <span className={`text-sm ${isProficient ? 'text-purple-300 font-medium' : 'text-gray-300'}`}>
                       {skill}
                     </span>
                   </div>
                   <span
                     className={`text-sm font-mono font-semibold ${
-                      isProficient ? 'text-amber-300' : 'text-gray-400'
+                      isProficient ? 'text-purple-300' : 'text-gray-400'
                     }`}
                   >
                     {signedNum(value)}
@@ -1051,11 +1051,11 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
               </div>
               <p className="text-lg font-bold text-gray-300 mb-2">
                 {character.xp.toLocaleString()} <span className="text-gray-600 font-normal text-sm">XP</span>
-                {!nextXp && <span className="text-amber-400 text-sm ml-2">Max Level</span>}
+                {!nextXp && <span className="text-purple-400 text-sm ml-2">Max Level</span>}
               </p>
               {nextXp && (
                 <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-600 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                  <div className="h-full bg-purple-600 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                 </div>
               )}
             </section>

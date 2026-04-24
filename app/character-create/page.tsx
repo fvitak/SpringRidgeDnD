@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -63,7 +63,7 @@ function QRCanvas({ url, size }: { url: string; size: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Done screen — shown after character creation (PC-first flow)
+// Done screen â€” shown after character creation (PC-first flow)
 // ---------------------------------------------------------------------------
 
 function DoneScreen({
@@ -88,13 +88,13 @@ function DoneScreen({
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-6">
-      {/* Back to lobby — always accessible at the top */}
+      {/* Back to lobby â€” always accessible at the top */}
       <div className="absolute top-0 left-0 right-0 px-4 py-3 flex items-center">
         <a
           href={`/?session_id=${sessionId}`}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-amber-400 transition-colors"
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-purple-400 transition-colors"
         >
-          <span>←</span>
+          <span>â†</span>
           <span>Back to Lobby</span>
         </a>
         <span className="ml-auto text-xs text-gray-600">Player {slot} of {playerCount}</span>
@@ -102,10 +102,10 @@ function DoneScreen({
 
       <div className="w-full max-w-xs text-center">
         {/* Confirmation */}
-        <div className="w-16 h-16 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center mx-auto mb-4">
-          <span className="text-2xl">✓</span>
+        <div className="w-16 h-16 rounded-full bg-purple-500/20 border-2 border-purple-500 flex items-center justify-center mx-auto mb-4">
+          <span className="text-2xl">âœ“</span>
         </div>
-        <h1 className="text-2xl font-bold text-amber-400 mb-1">Player {slot} Ready!</h1>
+        <h1 className="text-2xl font-bold text-purple-400 mb-1">Player {slot} Ready!</h1>
         <p className="text-lg text-white mb-0.5">{name}</p>
         <p className="text-sm text-gray-400 mb-8">Level 1 {cls}</p>
 
@@ -114,27 +114,27 @@ function DoneScreen({
           {!isLastSlot ? (
             <a
               href={nextSlotUrl}
-              className="block w-full py-4 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-lg rounded-2xl transition-all text-center"
+              className="block w-full py-4 bg-purple-500 hover:bg-purple-400 text-gray-900 font-bold text-lg rounded-2xl transition-all text-center"
             >
-              Create Player {slot + 1} →
+              Create Player {slot + 1} â†’
             </a>
           ) : (
             <a
               href={`/?session_id=${sessionId}`}
-              className="block w-full py-4 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-lg rounded-2xl transition-all text-center"
+              className="block w-full py-4 bg-purple-500 hover:bg-purple-400 text-gray-900 font-bold text-lg rounded-2xl transition-all text-center"
             >
-              All Done — Start the Adventure →
+              All Done â€” Start the Adventure â†’
             </a>
           )}
           <a
             href={`/?session_id=${sessionId}`}
             className="block w-full py-3 bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold rounded-2xl transition-all text-center"
           >
-            ← Back to Lobby
+            â† Back to Lobby
           </a>
         </div>
 
-        {/* QR code — secondary, for players to scan later on their phones */}
+        {/* QR code â€” secondary, for players to scan later on their phones */}
         <div className="border border-gray-800 rounded-2xl p-4">
           <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">
             Player {slot}&apos;s Character Sheet QR
@@ -193,7 +193,7 @@ function StatAdjuster({ assignments, onChange }: StatAssignmentProps) {
         return (
           <div key={stat} className="flex items-center bg-gray-800 rounded-xl px-4 py-3 border border-gray-700">
             <div className="flex-1">
-              <span className="text-sm font-bold text-amber-500 uppercase tracking-wider">{STAT_LABELS[stat]}</span>
+              <span className="text-sm font-bold text-purple-500 uppercase tracking-wider">{STAT_LABELS[stat]}</span>
               <span className="text-xs text-gray-500 ml-2">{STAT_FULL_LABELS[stat]}</span>
             </div>
             <div className="flex items-center gap-3">
@@ -202,10 +202,10 @@ function StatAdjuster({ assignments, onChange }: StatAssignmentProps) {
                 disabled={!canDown}
                 className="w-9 h-9 rounded-full bg-gray-700 text-white font-bold text-xl disabled:opacity-25 hover:bg-gray-600 active:scale-95 transition-all flex items-center justify-center"
               >
-                −
+                âˆ’
               </button>
               <div className="text-center w-12">
-                <div className="text-2xl font-bold text-amber-400 tabular-nums">{value}</div>
+                <div className="text-2xl font-bold text-purple-400 tabular-nums">{value}</div>
                 <div className="text-xs text-gray-400">{modStr(value)}</div>
               </div>
               <button
@@ -296,7 +296,7 @@ function CharacterCreateInner() {
       setCreatedCharacter({ name: characterName.trim(), cls, id: data.character_id })
       setStep('done')
     } catch {
-      setSubmitError('Network error — please try again')
+      setSubmitError('Network error â€” please try again')
       setSubmitting(false)
     }
   }
@@ -338,36 +338,36 @@ function CharacterCreateInner() {
         <div className="flex items-center justify-between mb-2">
           <a
             href={`/?session_id=${sessionId}`}
-            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-amber-400 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-purple-400 transition-colors"
           >
-            <span>←</span>
+            <span>â†</span>
             <span>Lobby</span>
           </a>
           <span className="text-xs text-gray-600">Player {slot} of {playerCount}</span>
         </div>
-        <h1 className="text-center text-amber-400 font-bold text-lg tracking-wide">
+        <h1 className="text-center text-purple-400 font-bold text-lg tracking-wide">
           Create Your Character
         </h1>
         {/* Progress bar */}
         <div className="mt-3 h-1.5 bg-gray-800 rounded-full overflow-hidden">
           <div
-            className="h-full bg-amber-500 rounded-full transition-all duration-500"
+            className="h-full bg-purple-500 rounded-full transition-all duration-500"
             style={{ width: `${progressPct}%` }}
           />
         </div>
         <div className="flex justify-between mt-1 text-xs text-gray-500">
-          <span className={step === 'class' ? 'text-amber-400' : ''}>Class</span>
-          <span className={step === 'race' ? 'text-amber-400' : ''}>Race</span>
-          <span className={step === 'stats' ? 'text-amber-400' : ''}>Stats</span>
-          <span className={step === 'quiz' ? 'text-amber-400' : ''}>Quiz</span>
-          <span className={step === 'name' ? 'text-amber-400' : ''}>Name</span>
+          <span className={step === 'class' ? 'text-purple-400' : ''}>Class</span>
+          <span className={step === 'race' ? 'text-purple-400' : ''}>Race</span>
+          <span className={step === 'stats' ? 'text-purple-400' : ''}>Stats</span>
+          <span className={step === 'quiz' ? 'text-purple-400' : ''}>Quiz</span>
+          <span className={step === 'name' ? 'text-purple-400' : ''}>Name</span>
         </div>
       </div>
 
       {/* Step content */}
       <div className="flex-1 overflow-y-auto px-4 py-6 max-w-lg mx-auto w-full">
 
-        {/* ── STEP 1: Class ── */}
+        {/* â”€â”€ STEP 1: Class â”€â”€ */}
         {step === 'class' && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-center mb-4">Choose Your Class</h2>
@@ -377,19 +377,19 @@ function CharacterCreateInner() {
                 onClick={() => { setSelectedClass(cls.id) }}
                 className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
                   selectedClass === cls.id
-                    ? 'border-amber-400 bg-gray-800'
+                    ? 'border-purple-400 bg-gray-800'
                     : 'border-gray-700 bg-gray-900 hover:border-gray-500'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="font-bold text-lg text-white">{cls.name}</div>
-                    <div className="text-amber-400 text-sm italic mb-1">{cls.tagline}</div>
+                    <div className="text-purple-400 text-sm italic mb-1">{cls.tagline}</div>
                     <div className="text-gray-400 text-sm">{cls.description}</div>
                   </div>
                   {selectedClass === cls.id && (
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center mt-1">
-                      <span className="text-gray-900 text-xs font-bold">✓</span>
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-400 flex items-center justify-center mt-1">
+                      <span className="text-gray-900 text-xs font-bold">âœ“</span>
                     </div>
                   )}
                 </div>
@@ -398,7 +398,7 @@ function CharacterCreateInner() {
           </div>
         )}
 
-        {/* ── STEP 2: Race ── */}
+        {/* â”€â”€ STEP 2: Race â”€â”€ */}
         {step === 'race' && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-center mb-4">Choose Your Race</h2>
@@ -412,19 +412,19 @@ function CharacterCreateInner() {
                   onClick={() => setSelectedRace(race.id)}
                   className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
                     selectedRace === race.id
-                      ? 'border-amber-400 bg-gray-800'
+                      ? 'border-purple-400 bg-gray-800'
                       : 'border-gray-700 bg-gray-900 hover:border-gray-500'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="font-bold text-lg text-white">{race.name}</div>
-                      <div className="text-amber-400 text-sm mb-1">{bonuses}</div>
+                      <div className="text-purple-400 text-sm mb-1">{bonuses}</div>
                       <div className="text-gray-400 text-sm">{race.description}</div>
                     </div>
                     {selectedRace === race.id && (
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center mt-1">
-                        <span className="text-gray-900 text-xs font-bold">✓</span>
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-400 flex items-center justify-center mt-1">
+                        <span className="text-gray-900 text-xs font-bold">âœ“</span>
                       </div>
                     )}
                   </div>
@@ -434,22 +434,22 @@ function CharacterCreateInner() {
           </div>
         )}
 
-        {/* ── STEP 3: Stats ── */}
+        {/* â”€â”€ STEP 3: Stats â”€â”€ */}
         {step === 'stats' && (
           <div>
             <h2 className="text-xl font-bold text-center mb-2">Adjust Your Stats</h2>
             <p className="text-center text-gray-400 text-sm mb-2">
-              Pre-set for your class. Use +/− to swap values between stats.
+              Pre-set for your class. Use +/âˆ’ to swap values between stats.
             </p>
             <div className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 mb-5 space-y-1.5 text-xs text-gray-400">
-              <p><span className="text-amber-500 font-semibold">How it works:</span> The six values (16, 14, 13, 12, 10, 8) are fixed — pressing + or − swaps your stat with the next higher or lower value in that set, it doesn&apos;t add or subtract points freely.</p>
-              <p><span className="text-amber-500 font-semibold">Odd numbers:</span> 13 and 12 give the same +1 modifier. If an odd score feels wasteful, swap it somewhere it matters less.</p>
+              <p><span className="text-purple-500 font-semibold">How it works:</span> The six values (16, 14, 13, 12, 10, 8) are fixed â€” pressing + or âˆ’ swaps your stat with the next higher or lower value in that set, it doesn&apos;t add or subtract points freely.</p>
+              <p><span className="text-purple-500 font-semibold">Odd numbers:</span> 13 and 12 give the same +1 modifier. If an odd score feels wasteful, swap it somewhere it matters less.</p>
             </div>
             <StatAdjuster assignments={statAssignments} onChange={setStatAssignments} />
           </div>
         )}
 
-        {/* ── STEP 4: Quiz ── */}
+        {/* â”€â”€ STEP 4: Quiz â”€â”€ */}
         {step === 'quiz' && (
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -462,7 +462,7 @@ function CharacterCreateInner() {
             {/* Quiz progress bar */}
             <div className="h-1 bg-gray-800 rounded-full mb-6 overflow-hidden">
               <div
-                className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                className="h-full bg-purple-500 rounded-full transition-all duration-300"
                 style={{ width: `${((currentQuestion) / totalQuestions) * 100}%` }}
               />
             </div>
@@ -482,11 +482,11 @@ function CharacterCreateInner() {
                     if (currentQuestion < totalQuestions - 1) {
                       setCurrentQuestion((n) => n + 1)
                     }
-                    // If last question, answers are complete — user proceeds via button
+                    // If last question, answers are complete â€” user proceeds via button
                   }}
                   className={`w-full text-left p-4 rounded-xl border-2 transition-all text-sm ${
                     quizAnswers[QUIZ_QUESTIONS[currentQuestion].id] === answer.traits
-                      ? 'border-amber-400 bg-gray-800 text-white'
+                      ? 'border-purple-400 bg-gray-800 text-white'
                       : 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-500'
                   }`}
                 >
@@ -501,13 +501,13 @@ function CharacterCreateInner() {
                 onClick={() => setCurrentQuestion((n) => n - 1)}
                 className="mt-6 text-sm text-gray-500 hover:text-gray-300 underline"
               >
-                ← Previous question
+                â† Previous question
               </button>
             )}
           </div>
         )}
 
-        {/* ── STEP 5: Name + Submit ── */}
+        {/* â”€â”€ STEP 5: Name + Submit â”€â”€ */}
         {step === 'name' && (
           <div className="space-y-6">
             <h2 className="text-xl font-bold text-center">Name Your Character</h2>
@@ -519,7 +519,7 @@ function CharacterCreateInner() {
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder="e.g. Alex"
-                className="w-full bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-400"
+                className="w-full bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-400"
               />
             </div>
 
@@ -530,7 +530,7 @@ function CharacterCreateInner() {
                 value={characterName}
                 onChange={(e) => setCharacterName(e.target.value)}
                 placeholder="e.g. Thorin Ironfist"
-                className="w-full bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-400"
+                className="w-full bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-400"
               />
             </div>
 
@@ -539,20 +539,20 @@ function CharacterCreateInner() {
               <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Character Summary</p>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Class</span>
-                <span className="text-amber-400 font-medium">
+                <span className="text-purple-400 font-medium">
                   {CLASSES.find((c) => c.id === selectedClass)?.name}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Race</span>
-                <span className="text-amber-400 font-medium">
+                <span className="text-purple-400 font-medium">
                   {RACES.find((r) => r.id === selectedRace)?.name}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Personality</span>
-                <span className="text-amber-400 font-medium">
-                  {getPersonalityTraits().join(', ') || '—'}
+                <span className="text-purple-400 font-medium">
+                  {getPersonalityTraits().join(', ') || 'â€”'}
                 </span>
               </div>
             </div>
@@ -564,7 +564,7 @@ function CharacterCreateInner() {
             <button
               onClick={handleSubmit}
               disabled={!playerName.trim() || !characterName.trim() || submitting}
-              className="w-full py-4 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold text-lg rounded-2xl transition-all"
+              className="w-full py-4 bg-purple-500 hover:bg-purple-400 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold text-lg rounded-2xl transition-all"
             >
               {submitting ? 'Creating...' : 'Create Character'}
             </button>
@@ -579,9 +579,9 @@ function CharacterCreateInner() {
             <button
               onClick={() => setStep('race')}
               disabled={!selectedClass}
-              className="w-full py-4 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold text-lg rounded-2xl transition-all"
+              className="w-full py-4 bg-purple-500 hover:bg-purple-400 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold text-lg rounded-2xl transition-all"
             >
-              Next: Race →
+              Next: Race â†’
             </button>
           )}
           {step === 'race' && (
@@ -590,7 +590,7 @@ function CharacterCreateInner() {
                 onClick={() => setStep('class')}
                 className="flex-1 py-4 bg-gray-800 text-gray-300 font-bold text-lg rounded-2xl"
               >
-                ← Back
+                â† Back
               </button>
               <button
                 onClick={() => {
@@ -599,9 +599,9 @@ function CharacterCreateInner() {
                   setStep('stats')
                 }}
                 disabled={!selectedRace}
-                className="flex-[2] py-4 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold text-lg rounded-2xl transition-all"
+                className="flex-[2] py-4 bg-purple-500 hover:bg-purple-400 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold text-lg rounded-2xl transition-all"
               >
-                Next: Stats →
+                Next: Stats â†’
               </button>
             </div>
           )}
@@ -611,14 +611,14 @@ function CharacterCreateInner() {
                 onClick={() => setStep('race')}
                 className="flex-1 py-4 bg-gray-800 text-gray-300 font-bold text-lg rounded-2xl"
               >
-                ← Back
+                â† Back
               </button>
               <button
                 onClick={() => setStep('quiz')}
                 disabled={!allStatsAssigned}
-                className="flex-[2] py-4 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold text-lg rounded-2xl transition-all"
+                className="flex-[2] py-4 bg-purple-500 hover:bg-purple-400 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold text-lg rounded-2xl transition-all"
               >
-                Next: Quiz →
+                Next: Quiz â†’
               </button>
             </div>
           )}
@@ -628,14 +628,14 @@ function CharacterCreateInner() {
                 onClick={() => { setStep('stats') }}
                 className="flex-1 py-4 bg-gray-800 text-gray-300 font-bold text-lg rounded-2xl"
               >
-                ← Back
+                â† Back
               </button>
               <button
                 onClick={() => setStep('name')}
                 disabled={!quizComplete}
-                className="flex-[2] py-4 bg-amber-500 hover:bg-amber-400 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold text-lg rounded-2xl transition-all"
+                className="flex-[2] py-4 bg-purple-500 hover:bg-purple-400 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold text-lg rounded-2xl transition-all"
               >
-                Next: Name →
+                Next: Name â†’
               </button>
             </div>
           )}
@@ -644,7 +644,7 @@ function CharacterCreateInner() {
               onClick={() => setStep('quiz')}
               className="w-full py-3 bg-gray-800 text-gray-300 font-bold rounded-2xl"
             >
-              ← Back
+              â† Back
             </button>
           )}
         </div>
@@ -654,7 +654,7 @@ function CharacterCreateInner() {
 }
 
 // ---------------------------------------------------------------------------
-// Page export — wrapped in Suspense for useSearchParams
+// Page export â€” wrapped in Suspense for useSearchParams
 // ---------------------------------------------------------------------------
 
 export default function CharacterCreatePage() {
