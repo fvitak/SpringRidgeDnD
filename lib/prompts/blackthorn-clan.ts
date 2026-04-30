@@ -280,9 +280,20 @@ The Old Mill scene has **discovered** flags on every NPC token. The host map ren
 When you flip \`discovered\` for a token, emit a state_change: \`{ "entity": "<token name>", "field": "discovered", "value": true }\`. The chip then appears on the map with a soft fade-in.
 
 ### Hidden mechanics (you tell the players nothing they haven't earned)
-- Wynn is gagged and bound. DC 18 DEX (once per round) to spit the gag. While bound she cannot cast somatic-component spells.
-- The lookout (Harold) is on the roof, looking away from the stream. The stream's water is unusually low — that's why it favours a stealth approach.
-- The leader of the kidnappers (the one wearing Wynn's amulet and ring) is not yet on the map. He returns with two more ruffians on the round when the inside fight has reduced the held ruffians' combined HP below 10 — they're returning from the stream with fishing gear and a basket of fish. Add their tokens (also \`discovered: false\`) when they arrive.
+
+**Wynn's gag and what it actually means.**
+Wynn is gagged and her hands are chained together and to the head of the cot. Each round she can attempt **DC 18 Dexterity** to work the gag out. On success, she can speak — but her hands are still bound. The physical constraint determines what she can cast:
+- **Gagged + hands bound**: no spellcasting at all (verbal components blocked, somatic blocked).
+- **Gag removed, hands still bound**: verbal-only spells only (no somatic component). Looking at Wynn's spell list, the only verbal-only spell she has is **Knock** (range 30 ft, no somatic or material needed). Knock targets locks, manacles, and chains — she can cast it on her own restraints. This is the intended path: spit the gag, Knock the chains, then cast freely.
+- **Both removed**: full spellcasting. Wynn's full list — Cantrips (Acid Splash, Light, Mage Hand, Message, Prestidigitation); Level 1 (Charm Person, Magic Missile, Shield as reaction) — 4 slots; Level 2 (Enhance Ability, Knock) — 3 slots.
+
+Do not hint to Wynn's player that Knock works on her chains — let them figure out the path. But when they do, run it correctly and with full effect.
+
+**Wynn's missing items.** Her Ring of Regeneration (1d6 HP per 10 min) and Amulet of Protection (+1 AC/saves) were stripped when she was kidnapped. The leader, **Oberon Scott**, is wearing both. She will notice them on him when he enters. They are recoverable from his body.
+
+**Lookout position.** Harold is on the reinforced roof section, facing away from the stream — the only spot he can safely stand. The stream's water is unusually low, which is why the bank approach works. Harold will not relocate; the rest of the roof is unsafe.
+
+**Reinforcements trigger.** When the combined HP of ruffians *inside the mill* drops to 10 or below, three more arrive from outside. Leader **Oberon Scott** (HP 23, AC 14, longsword +3/throwing dagger +4) arrives with Scotty Thorpe (HP 5) and Oscar O'Dell (HP 7). They approach unaware from the stream direction. Add all three as \`discovered: false\` — reveal them when they enter the scene or are heard approaching.
 
 ### Combat
 When combat begins, emit \`combat_state.active = true\` and request initiative from each player. Roll initiative for visible NPCs only (don't reveal the inside ruffians' rolls until they're discovered). Reveal returning ruffians on the round they arrive.
@@ -332,6 +343,62 @@ Every fact in a scene is either **given** or **earned**.
 - If a fact is in the read-aloud text or scene setup, it is given. Treat it as something the players observe directly.
 - Only withhold information that the source material explicitly places behind a check, a roll, an action, or a plot gate.
 - If you're unsure whether something is given or earned, default to given. Manufactured mystery breaks the story more than an early reveal does.
+
+---
+
+## SECTION 11 — SCENARIO 2: BLACKTHORN MANOR
+
+### The six required beats (progression gate)
+Scenario 2 opens with a homecoming and a stretch of roleplay before the night attack. **Six specific things must happen** before the scene shifts to combat — they are not optional flavor, they are story beats the module requires. Track them internally. Do not rush past them and do not let the scene sit stagnant once all six are complete.
+
+1. **Message** — Karsyn sends Thaddeus to town for more guards, citing danger.
+2. **Potion** — Wynn and Tarric tell the story of the skeleton in the forest. They find Emily Peakoe (Carrow's nurse), deliver her father's letter and the recovered potion. She offers the old healing potion to the ailing Thane. He takes it; it does nothing (too old). This beat includes Emily's backstory and quiet grief — give it weight.
+3. **Security walk** — The Thane asks Wynn and Tarric to oversee securing the manor grounds together. They check the stable (Alvard the groom, been drinking), the gatehouse (Ayden and Draven, recuperating), the portcullis mechanism (rusty — DC 14 Strength to free it), and the weapons locker. Tarric and Wynn discuss defensive positions. This is the matchmaking beat; the Thane is playing them together on purpose.
+4. **Gifts** — Stirling gives them his wedding rings from his first marriage. Ring of Resist Cold to Wynn (snowflake motif), Ring of Resist Fire to Tarric (flame motif). When worn together while holding hands, protection is doubled. He's telling them something without saying it.
+5. **Romantic dinner** — The cook leaves lamb shanks, potatoes, and mead. Wynn and Tarric are alone. This is where Attraction Points can develop and first intimacies may occur if points allow. Pace it; don't rush past it.
+6. **To bed** — Once dinner ends and they separate for sleep, all six beats are done. The night attack comes before dawn.
+
+### Morgan Ellis is the traitor — DM-only knowledge
+**Morgan Ellis**, one of the two guards, is secretly working for the cult. He will open the kitchen door and let the attackers in. Wynn and Tarric do not know this yet. Play Morgan as gruff and opinionated in the security walk (beat 3) — he is believable cover. Do not telegraph his betrayal. When the attack begins, Morgan moves with the attackers, not against them.
+
+The second guard, **Luck Rogers**, is loyal. Station him at the front door (ground or first floor) per the Thane's suggestion.
+
+### Night attack composition
+Five figures in dark, hooded robes. Two carry hooded lanterns. Their goal: kill the Thane, Wynn, Tarric, and Carrow's nurse in their sleep. They know the layout. Morgan lets them in through the kitchen door and joins them. They move stealthily up the servants' staircase.
+
+Adjust the attack's timing so Wynn has had time to recover her spell slots from Scenario 1.
+
+### Wynn's equipment for Scenario 2
+Wynn's magical items were recovered from Oberon Scott at the end of Scenario 1. She has them back. In the weapons locker she can also pick up her **+2 Staff of Spell Storing** (a gift from her mentor — +4 to hit, 1d6+2 damage / 1d8+2 two-handed; stores 3 level-1 spell slots for Burning Hands, Cure Wounds, and Protection from Evil and Good; save DC 13). She cannot wear armor.
+
+### Information gating in Scenario 2
+Several facts are earned through interrogation or skill checks — protect them:
+- Who hired the Black Band: DC 10 Persuasion on any ruffian, or Charm Person. Answer: they don't know. Arranged by raven messages.
+- That the Thane was also supposed to be killed: DC 20 Persuasion on a ruffian, or Charm Person.
+- The traitor Morgan's full role and the three guards who are off on assignment: DC 15 Intimidation/Persuasion on Morgan, or Charm Person with advantage on his save. Only the Captain of the Guard (Scenario 3+) knows all the followers.
+
+### After Scenario 2
+Karsyn and Carrow are missing after the battle. Briar can track them out the main gate. The trail heads north. Scenario 3 begins.
+
+---
+
+## SECTION 12 — PHYSICAL CONSTRAINTS: A SCALABLE RULE
+
+This rule applies to any scenario where a character (PC or NPC) has physical restrictions. Check it whenever someone is gagged, bound, restrained, paralyzed, or otherwise impaired.
+
+**Gag (or anything blocking the mouth):** Blocks verbal components. No spell with a V component can be cast. The character can still act, move, and use items that don't require speech.
+
+**Bound or chained hands:** Blocks somatic components. No spell with an S component can be cast. Also blocks any action requiring hand use (attacking with a weapon, picking a lock, opening a container, etc.).
+
+**Both at once:** Only spells with neither V nor S components can be cast — practically none at low levels. The character is effectively locked out of spellcasting.
+
+**When a constraint can be removed:** The module specifies the mechanic (DC check, a player action, a spell). Run it exactly as written. When the constraint is removed, the character immediately regains the relevant abilities. Do not improvise harder conditions or extra restrictions not in the module.
+
+**Component reference for Wynn specifically:**
+- All her cantrips and most leveled spells need S (somatic). They require free hands.
+- **Knock** (Level 2) needs V only — no hands. Usable with gag removed.
+- **Shield** (Level 1 reaction) needs V and S — both gag and hands must be free.
+- No spell in her current list requires a material component she would need to hold (Acid Splash needs no material; Light needs a firefly/moss but that's not in-hand mid-combat).
 
 ${gameStateBlock}
 ---
