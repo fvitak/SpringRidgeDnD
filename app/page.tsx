@@ -1442,6 +1442,16 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
               ↺ Restart
             </button>
           )}
+          <button
+            onClick={async () => {
+              await fetch(`/api/sessions/${sessionId}/map/reset`, { method: 'POST' })
+              fetchMap()
+            }}
+            className="text-xs text-gray-400 hover:text-yellow-300 border border-gray-600 hover:border-yellow-700 rounded px-2 py-0.5 transition-colors"
+            title="Reset all tokens to their starting positions"
+          >
+            ⟳ Reset tokens
+          </button>
         </div>
         <button
           onClick={() => setShowHistory(true)}
