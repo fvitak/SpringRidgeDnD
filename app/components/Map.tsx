@@ -382,12 +382,12 @@ export default function Map({
         {(() => {
           // Assign A, B, C... to discovered hostile tokens sorted by id — matches sidebar ordering.
           const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-          const hostileLetterMap = new Map<string, string>()
+          const hostileLetterMap: Record<string, string> = {}
           tokens
             .filter((t) => t.is_friendly === false && t.discovered !== false)
             .slice()
             .sort((a, b) => a.id.localeCompare(b.id))
-            .forEach((t, i) => hostileLetterMap.set(t.id, alphabet[i] ?? String(i + 1)))
+            .forEach((t, i) => { hostileLetterMap[t.id] = alphabet[i] ?? String(i + 1) })
           return tokens.filter((t) => t.discovered !== false).map((t) => {
           const isSelected = t.id === selectedTokenId
           const isActive = t.id === activeTokenId
@@ -395,7 +395,7 @@ export default function Map({
           const tokenColor = (t as MapToken & { color?: string }).color ?? (isFriendly ? '#5B7FBF' : '#A23B3B')
           // Hostile tokens show their letter badge (A, B, C…) instead of name initials.
           const label = !isFriendly
-            ? (hostileLetterMap.get(t.id) ?? '?')
+            ? (hostileLetterMap[t.id] ?? '?')
             : t.name.split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
           // Scale the token text size with cell size so it stays legible.
           const fontSize = Math.max(9, Math.floor(cellSize * 0.32))
