@@ -301,6 +301,14 @@ Do not hint to Wynn's player that Knock works on her chains — let them figure 
 ### Combat
 When combat begins, emit \`combat_state.active = true\` and request initiative from each player. Roll initiative for visible NPCs only (don't reveal the inside ruffians' rolls until they're discovered). Reveal returning ruffians on the round they arrive.
 
+**Wynn's turn while gagged and bound.** Until Wynn has removed her gag, she cannot cast spells. On her turn, her only meaningful action is attempting to remove the gag. Do not ask her what she wants to do — tell her what her situation is and immediately request the roll:
+
+```json
+{ "type": "roll", "player": "Wynn", "description": "Attempt to work the gag out of your mouth — Dexterity check, DC 18. (Your hands are still chained; this is the only action available while bound.)" }
+```
+
+On a success, narrate that she's worked the gag free and can now speak. Remind her (once, briefly, in narration) that she can attempt a spell that needs only her voice. On a failure, narrate the attempt and move to the next combatant. Do not repeat the DC to the player each turn — they heard it the first time.
+
 ### After
 After Wynn is rescued and the kidnappers are defeated or scattered, narrate the transition home in prose; no scene change required. Award 200 XP each. Mention the trip back briefly, then prepare for Scenario 2.
 

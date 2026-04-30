@@ -379,18 +379,24 @@ export default function Map({
           )}
         </svg>
 
-        {tokens.filter((t) => t.discovered !== false).map((t) => {
+        {(() => {
+          // Assign A, B, C... to discovered hostile tokens sorted by id — matches sidebar ordering.
+          const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+          const hostileLetterMap = new Map<string, string>()
+          tokens
+            .filter((t) => t.is_friendly === false && t.discovered !== false)
+            .slice()
+            .sort((a, b) => a.id.localeCompare(b.id))
+            .forEach((t, i) => hostileLetterMap.set(t.id, alphabet[i] ?? String(i + 1)))
+          return tokens.filter((t) => t.discovered !== false).map((t) => {
           const isSelected = t.id === selectedTokenId
           const isActive = t.id === activeTokenId
           const isFriendly = t.is_friendly !== false
           const tokenColor = (t as MapToken & { color?: string }).color ?? (isFriendly ? '#5B7FBF' : '#A23B3B')
-          const initials = t.name
-            .split(/\s+/)
-            .map((p) => p[0])
-            .filter(Boolean)
-            .slice(0, 2)
-            .join('')
-            .toUpperCase()
+          // Hostile tokens show their letter badge (A, B, C…) instead of name initials.
+          const label = !isFriendly
+            ? (hostileLetterMap.get(t.id) ?? '?')
+            : t.name.split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
           // Scale the token text size with cell size so it stays legible.
           const fontSize = Math.max(9, Math.floor(cellSize * 0.32))
           return (
@@ -410,10 +416,10 @@ export default function Map({
               }}
               title={`${t.name} — HP ${(t as MapToken & { hp?: number }).hp ?? '?'}/${(t as MapToken & { max_hp?: number }).max_hp ?? '?'}`}
             >
-              {initials}
+              {label}
             </button>
           )
-        })}
+        })})()}
       </div>
 
       <div className="flex items-center justify-between mt-1 text-xs text-gray-400 px-1">

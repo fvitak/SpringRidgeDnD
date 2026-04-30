@@ -284,6 +284,40 @@ function PartySidebar({
         )
       })}
 
+      {/* Companions (friendly tokens not linked to a party member, e.g. Briar) */}
+      {(() => {
+        const linkedIds = new Set(
+          party.map((m) => {
+            const t = mapTokens.find((tk) => (tk as MapToken & { character_id?: string }).character_id === m.id)
+            return t?.id
+          }).filter(Boolean)
+        )
+        const companions = mapTokens.filter((t) => t.is_friendly !== false && !linkedIds.has(t.id))
+        if (companions.length === 0) return null
+        return (
+          <div className="border-t border-gray-800 pt-3 mt-1">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 px-1 mb-2">Companions</h2>
+            {companions.map((t) => {
+              const isPlacing = placingTokenId === t.id
+              return (
+                <div key={t.id} className="bg-gray-800 rounded-xl p-3 space-y-2 border border-gray-700 mb-2">
+                  <p className="text-sm font-semibold text-gray-100 truncate">{t.name}</p>
+                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                    {isPlacing ? (
+                      <button onClick={onStopPlace} className="flex-1 text-xs py-1 rounded bg-blue-700 hover:bg-blue-600 text-white font-medium transition-colors">Set Position</button>
+                    ) : t.placed ? (
+                      <button onClick={() => onStartPlace(t.id)} className="flex-1 text-xs py-1 rounded bg-gray-700 hover:bg-purple-700 text-gray-300 hover:text-white transition-colors">Adjust</button>
+                    ) : (
+                      <button onClick={() => onStartPlace(t.id)} className="flex-1 text-xs py-1 rounded bg-amber-700 hover:bg-amber-600 text-amber-100 hover:text-white font-medium transition-colors">Place</button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })()}
+
       {/* Map controls — Set Position exits placement mode globally */}
       {placingTokenId && (
         <button
@@ -295,109 +329,77 @@ function PartySidebar({
       )}
 
       {/* NPCs in scene */}
-      {!combatState?.active && (
-        npcs.some((npc) => {
+      {!combatState?.active && (() => {
+        const discoveredHostile = mapTokens.filter((t) => t.is_friendly === false && t.discovered !== false)
+        const hasNpcs = npcs.some((npc) => {
           const token = mapTokens.find((t) => t.name === npc.name)
           return token ? token.discovered !== false : false
-        }) ||
-        mapTokens.some((t) => t.is_friendly === false && t.discovered !== false)
-      ) && (
-        <>
+        }) || discoveredHostile.length > 0
+        if (!hasNpcs) return null
+
+        // Assign A, B, C... to discovered hostile tokens sorted by id for stability.
+        // Map.tsx uses the same ordering so letters match between sidebar and map tokens.
+        const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        const letterMap = new Map<string, string>()
+        discoveredHostile
+          .slice()
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .forEach((t, i) => letterMap.set(t.id, alphabet[i] ?? String(i + 1)))
+
+        const PlaceButtons = ({ token }: { token: MapToken }) => {
+          const placing = placingTokenId === token.id
+          return placing ? (
+            <button onClick={onStopPlace} className="w-full text-xs py-1 rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors font-medium">Set Position</button>
+          ) : token.placed ? (
+            <button onClick={() => onStartPlace(token.id)} className="w-full text-xs py-1 rounded bg-gray-700 hover:bg-orange-700 text-gray-300 hover:text-white transition-colors">Adjust NPC</button>
+          ) : (
+            <button onClick={() => onStartPlace(token.id)} className="w-full text-xs py-1 rounded bg-amber-700 hover:bg-amber-600 text-amber-100 hover:text-white font-medium transition-colors">Place NPC</button>
+          )
+        }
+
+        return (
           <div className="border-t border-gray-800 pt-3 mt-1">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 px-1 mb-2">
-              In the Scene
-            </h2>
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 px-1 mb-2">In the Scene</h2>
+            {/* NPCs from scene data */}
             {npcs
-              .filter((npc) => {
-                const token = mapTokens.find((t) => t.name === npc.name)
-                if (token) return token.discovered !== false
-                return false
-              })
+              .filter((npc) => { const t = mapTokens.find((tk) => tk.name === npc.name); return t ? t.discovered !== false : false })
               .map((npc) => {
-              const npcToken = mapTokens.find((t) => t.name === npc.name)
-              const isNpcPlacing = npcToken ? placingTokenId === npcToken.id : false
-              return (
-                <div key={npc.name} className="mb-1">
-                  <button
-                    onClick={() => onInsertName(npc.name)}
-                    className="w-full text-left px-2 pt-2 pb-1 rounded-t-lg hover:bg-gray-800 transition-colors group"
-                    title={`Insert "${npc.name}" at cursor`}
-                  >
-                    <span className="text-sm font-medium text-gray-200 group-hover:text-purple-400 transition-colors block leading-tight">
-                      {npc.name}
-                    </span>
-                    {npc.description && (
-                      <span className="text-xs text-gray-500 block leading-tight">{npc.description}</span>
-                    )}
-                    {npc.location && (
-                      <span className="text-xs text-gray-600 block leading-tight italic">{npc.location}</span>
-                    )}
-                  </button>
-                  {npcToken && (
-                    <div className="px-2 pb-2">
-                      {isNpcPlacing ? (
-                        <button
-                          onClick={onStopPlace}
-                          className="w-full text-xs py-1 rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors font-medium"
-                        >
-                          Set Position
-                        </button>
-                      ) : npcToken.placed ? (
-                        <button
-                          onClick={() => onStartPlace(npcToken.id)}
-                          className="w-full text-xs py-1 rounded bg-gray-700 hover:bg-orange-700 text-gray-300 hover:text-white transition-colors"
-                        >
-                          Adjust NPC
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => onStartPlace(npcToken.id)}
-                          className="w-full text-xs py-1 rounded bg-amber-700 hover:bg-amber-600 text-amber-100 hover:text-white transition-colors font-medium"
-                        >
-                          Place NPC
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-            {/* NPC tokens on map that aren't in the npcs list */}
+                const npcToken = mapTokens.find((t) => t.name === npc.name)!
+                const letter = letterMap.get(npcToken.id)
+                return (
+                  <div key={npc.name} className="mb-2 bg-gray-800/50 rounded-lg border border-gray-700">
+                    <button onClick={() => onInsertName(npc.name)} className="w-full text-left px-2 pt-2 pb-1 rounded-t-lg hover:bg-gray-800 transition-colors group" title={`Insert "${npc.name}" at cursor`}>
+                      <div className="flex items-start gap-2">
+                        {letter && <span className="flex-shrink-0 w-5 h-5 rounded-full bg-red-900 border border-red-600 text-red-200 text-xs font-bold flex items-center justify-center mt-0.5">{letter}</span>}
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-gray-200 group-hover:text-purple-400 transition-colors block leading-tight">{npc.name}</span>
+                          {npc.description && <span className="text-xs text-gray-500 block leading-tight">{npc.description}</span>}
+                          {npc.location && <span className="text-xs text-gray-600 block leading-tight italic">{npc.location}</span>}
+                        </div>
+                      </div>
+                    </button>
+                    <div className="px-2 pb-2"><PlaceButtons token={npcToken} /></div>
+                  </div>
+                )
+              })}
+            {/* Hostile tokens not in npcs list */}
             {mapTokens
               .filter((t) => t.is_friendly === false && t.discovered !== false && !npcs.some((n) => n.name === t.name))
               .map((t) => {
-                const isNpcPlacing = placingTokenId === t.id
+                const letter = letterMap.get(t.id)
                 return (
-                  <div key={t.id} className="mb-1 px-2 pb-2">
-                    <p className="text-sm font-medium text-gray-300 leading-tight mb-1">{t.name}</p>
-                    {isNpcPlacing ? (
-                      <button
-                        onClick={onStopPlace}
-                        className="w-full text-xs py-1 rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors font-medium"
-                      >
-                        Set Position
-                      </button>
-                    ) : t.placed ? (
-                      <button
-                        onClick={() => onStartPlace(t.id)}
-                        className="w-full text-xs py-1 rounded bg-gray-700 hover:bg-orange-700 text-gray-300 hover:text-white transition-colors"
-                      >
-                        Adjust NPC
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => onStartPlace(t.id)}
-                        className="w-full text-xs py-1 rounded bg-amber-700 hover:bg-amber-600 text-amber-100 hover:text-white transition-colors font-medium"
-                      >
-                        Place NPC
-                      </button>
-                    )}
+                  <div key={t.id} className="mb-2 bg-gray-800/50 rounded-lg border border-gray-700 px-2 py-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      {letter && <span className="flex-shrink-0 w-5 h-5 rounded-full bg-red-900 border border-red-600 text-red-200 text-xs font-bold flex items-center justify-center">{letter}</span>}
+                      <p className="text-sm font-medium text-gray-300 leading-tight">{t.name}</p>
+                    </div>
+                    <PlaceButtons token={t} />
                   </div>
                 )
               })}
           </div>
-        </>
-      )}
+        )
+      })()}
 
       {/* Private DM Chat */}
       <div className="border-t border-gray-800 pt-3 mt-auto">
