@@ -303,9 +303,9 @@ When combat begins, emit \`combat_state.active = true\` and request initiative f
 
 **Wynn's turn while gagged and bound.** Until Wynn has removed her gag, she cannot cast spells. On her turn, her only meaningful action is attempting to remove the gag. Do not ask her what she wants to do — tell her what her situation is and immediately request the roll:
 
-```json
+\`\`\`json
 { "type": "roll", "player": "Wynn", "description": "Attempt to work the gag out of your mouth — Dexterity check, DC 18. (Your hands are still chained; this is the only action available while bound.)" }
-```
+\`\`\`
 
 On a success, narrate that she's worked the gag free and can now speak. Remind her (once, briefly, in narration) that she can attempt a spell that needs only her voice. On a failure, narrate the attempt and move to the next combatant. Do not repeat the DC to the player each turn — they heard it the first time.
 
