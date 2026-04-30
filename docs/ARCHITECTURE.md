@@ -51,6 +51,9 @@ Supabase Realtime pushes HP/conditions/death-saves to each mobile sheet.
 | `app/api/players/*`                    | Slot claim, presence                                                       |
 | `app/api/event-log/*`                  | Fetch event log for a session                                              |
 | `app/api/restart/*`                    | Reset a Random Encounter session                                           |
+| `app/admin/scenes/page.tsx`            | Admin scene list — query-param gated, not linked from any player route     |
+| `app/admin/scenes/[id]/page.tsx`       | Admin scene detail + alignment editor (Client Component)                   |
+| `app/api/admin/scenes/[id]/route.ts`   | `PATCH` — updates geometry params only; never touches `walkable`           |
 | `lib/prompts/wild-sheep-chase.ts`      | Full system prompt — persona, lore, rules, combat, drunkenness, spoilers   |
 | `lib/schemas/dm-response.ts`           | `dmResponseSchema` (Zod) + `parseDMResponse()`                             |
 | `lib/dice.ts`                          | `rollDie`, `roll(NdS)`, `rollCheck`, `rollDamage`                          |
