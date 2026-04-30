@@ -7,6 +7,7 @@ const patchSchema = z
     grid_cols:   z.number().int().min(1).optional(),
     grid_rows:   z.number().int().min(1).optional(),
     cell_px:     z.number().int().min(8).optional(),
+    cell_w_px:   z.number().int().min(8).optional(),
     origin_x_px: z.number().int().optional(),
     origin_y_px: z.number().int().optional(),
   })
@@ -35,7 +36,7 @@ export async function PATCH(
     .from('scenes')
     .update(parsed.data)
     .eq('id', id)
-    .select('id, name, grid_cols, grid_rows, cell_px, origin_x_px, origin_y_px')
+    .select('id, name, grid_cols, grid_rows, cell_px, cell_w_px, origin_x_px, origin_y_px')
     .single()
 
   if (error) {

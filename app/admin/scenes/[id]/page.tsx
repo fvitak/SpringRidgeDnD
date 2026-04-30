@@ -18,7 +18,7 @@ export default async function SceneEditorPage({ params, searchParams }: Props) {
   const supabase = getSupabase()
   const { data: scene, error } = await supabase
     .from('scenes')
-    .select('id, name, image_path, grid_cols, grid_rows, cell_px, origin_x_px, origin_y_px')
+    .select('id, name, image_path, grid_cols, grid_rows, cell_px, cell_w_px, origin_x_px, origin_y_px')
     .eq('id', id)
     .single()
 

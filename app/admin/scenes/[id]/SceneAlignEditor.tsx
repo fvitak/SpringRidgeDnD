@@ -9,6 +9,7 @@ interface SceneRow {
   grid_cols: number
   grid_rows: number
   cell_px: number | null
+  cell_w_px: number | null
   origin_x_px: number | null
   origin_y_px: number | null
 }
@@ -20,7 +21,8 @@ interface Props {
 interface Geometry {
   grid_cols: number
   grid_rows: number
-  cell_px: number
+  cell_h_px: number
+  cell_w_px: number
   origin_x_px: number
   origin_y_px: number
 }
@@ -36,30 +38,40 @@ function Field({
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-      <label style={{ width: 110, fontSize: '0.85rem' }}>{label}</label>
+      <label style={{ width: 110, fontSize: '0.85rem', color: '#111' }}>{label}</label>
+      <button
+        onClick={() => onChange(value - 1)}
+        style={{ width: 26, height: 26, border: '1px solid #aaa', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, color: '#111' }}
+      >−</button>
       <input
         type="range"
         min={min}
         max={max}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        style={{ flex: 1, maxWidth: 260 }}
+        style={{ flex: 1, maxWidth: 200 }}
       />
+      <button
+        onClick={() => onChange(value + 1)}
+        style={{ width: 26, height: 26, border: '1px solid #aaa', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, color: '#111' }}
+      >+</button>
       <input
         type="number"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        style={{ width: 64, padding: '0.2rem 0.4rem', fontFamily: 'monospace', fontSize: '0.85rem', border: '1px solid #ccc', borderRadius: 4 }}
+        style={{ width: 64, padding: '0.2rem 0.4rem', fontFamily: 'monospace', fontSize: '0.85rem', border: '1px solid #ccc', borderRadius: 4, color: '#111' }}
       />
     </div>
   )
 }
 
 export default function SceneAlignEditor({ scene }: Props) {
+  const cellH = scene.cell_px ?? 40
   const [geo, setGeo] = useState<Geometry>({
-    grid_cols: scene.grid_cols,
-    grid_rows: scene.grid_rows,
-    cell_px: scene.cell_px ?? 40,
+    grid_cols:   scene.grid_cols,
+    grid_rows:   scene.grid_rows,
+    cell_h_px:   cellH,
+    cell_w_px:   scene.cell_w_px ?? cellH,
     origin_x_px: scene.origin_x_px ?? 0,
     origin_y_px: scene.origin_y_px ?? 0,
   })
@@ -77,15 +89,17 @@ export default function SceneAlignEditor({ scene }: Props) {
     if (el) setImgSize({ w: el.naturalWidth, h: el.naturalHeight })
   }
 
-  // SVG grid lines based on current geometry
   const svgW = imgSize?.w ?? 800
   const svgH = imgSize?.h ?? 600
-  const { grid_cols, grid_rows, cell_px, origin_x_px, origin_y_px } = geo
+  const { grid_cols, grid_rows, cell_h_px, cell_w_px, origin_x_px, origin_y_px } = geo
 
   const vLines: number[] = []
-  for (let i = 0; i <= grid_cols; i++) vLines.push(origin_x_px + i * cell_px)
+  for (let i = 0; i <= grid_cols; i++) vLines.push(origin_x_px + i * cell_w_px)
   const hLines: number[] = []
-  for (let i = 0; i <= grid_rows; i++) hLines.push(origin_y_px + i * cell_px)
+  for (let i = 0; i <= grid_rows; i++) hLines.push(origin_y_px + i * cell_h_px)
+
+  const maxDisplayW = Math.min(svgW, 1200)
+  const scale = maxDisplayW / svgW
 
   async function handleSave() {
     setSaveState('saving')
@@ -94,7 +108,14 @@ export default function SceneAlignEditor({ scene }: Props) {
       const res = await fetch(`/api/admin/scenes/${scene.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(geo),
+        body: JSON.stringify({
+          grid_cols:   geo.grid_cols,
+          grid_rows:   geo.grid_rows,
+          cell_px:     geo.cell_h_px,
+          cell_w_px:   geo.cell_w_px,
+          origin_x_px: geo.origin_x_px,
+          origin_y_px: geo.origin_y_px,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -110,17 +131,13 @@ export default function SceneAlignEditor({ scene }: Props) {
     }
   }
 
-  // Scale the image display to fit viewport width (max 1200px)
-  const maxDisplayW = Math.min(svgW, 1200)
-  const scale = maxDisplayW / svgW
-
   return (
     <div>
-      {/* Controls */}
-      <div style={{ marginBottom: '1.25rem', padding: '1rem', background: '#f8f8f8', borderRadius: 8, maxWidth: 520 }}>
-        <Field label="grid_cols" value={geo.grid_cols} min={1} max={80} onChange={(v) => set('grid_cols', v)} />
-        <Field label="grid_rows" value={geo.grid_rows} min={1} max={80} onChange={(v) => set('grid_rows', v)} />
-        <Field label="cell_px" value={geo.cell_px} min={8} max={200} onChange={(v) => set('cell_px', v)} />
+      <div style={{ marginBottom: '1.25rem', padding: '1rem', background: '#f0f0f0', borderRadius: 8, maxWidth: 560 }}>
+        <Field label="grid_cols"   value={geo.grid_cols}   min={1}    max={80}  onChange={(v) => set('grid_cols', v)} />
+        <Field label="grid_rows"   value={geo.grid_rows}   min={1}    max={80}  onChange={(v) => set('grid_rows', v)} />
+        <Field label="cell_h_px"   value={geo.cell_h_px}   min={8}    max={200} onChange={(v) => set('cell_h_px', v)} />
+        <Field label="cell_w_px"   value={geo.cell_w_px}   min={8}    max={200} onChange={(v) => set('cell_w_px', v)} />
         <Field label="origin_x_px" value={geo.origin_x_px} min={-200} max={500} onChange={(v) => set('origin_x_px', v)} />
         <Field label="origin_y_px" value={geo.origin_y_px} min={-200} max={500} onChange={(v) => set('origin_y_px', v)} />
 
@@ -146,7 +163,6 @@ export default function SceneAlignEditor({ scene }: Props) {
         </div>
       </div>
 
-      {/* Map preview with SVG overlay */}
       <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -169,7 +185,6 @@ export default function SceneAlignEditor({ scene }: Props) {
             {hLines.map((y, i) => (
               <line key={`h${i}`} x1={0} y1={y} x2={svgW} y2={y} stroke="rgba(255,0,0,0.5)" strokeWidth={1} />
             ))}
-            {/* Origin marker */}
             <circle cx={origin_x_px} cy={origin_y_px} r={5} fill="rgba(255,0,0,0.8)" />
           </svg>
         )}
