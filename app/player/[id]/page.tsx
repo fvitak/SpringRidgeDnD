@@ -51,6 +51,14 @@ interface Character {
   death_saves_successes: number
   death_saves_failures: number
   is_stable: boolean
+  rating_preference?: string
+}
+
+interface SessionInfo {
+  scenario_id?: string | null
+  date_night_mode?: boolean
+  current_rating?: string
+  name?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -572,6 +580,58 @@ function InventoryPanel({ inventory, characterId }: { inventory: InventoryItem[]
 // Component
 // ---------------------------------------------------------------------------
 
+// Rating dial component for the per-player content rating.
+const RATING_OPTIONS = ['G', 'PG', 'PG-13', 'R', 'NC-17']
+
+interface RatingDialProps {
+  current: string
+  sessionRating: string
+  saving: boolean
+  pending: string | null
+  onChange: (r: string) => void
+}
+
+function RatingDial(props: RatingDialProps) {
+  const { current, sessionRating, saving, pending, onChange } = props
+  return (
+    <section className="bg-gray-900 rounded-2xl p-4 border border-pink-900/60">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-semibold uppercase tracking-widest text-pink-400">
+          Content Rating
+        </p>
+        <span className="text-xs text-gray-500">
+          Session: <span className="text-pink-300 font-semibold">{sessionRating}</span>
+        </span>
+      </div>
+      <div className="grid grid-cols-5 gap-1.5">
+        {RATING_OPTIONS.map(function renderOption(r) {
+          const isMine = current === r
+          const isPending = pending === r
+          const baseClass = 'py-2 rounded-lg text-xs font-bold border-2 transition-all min-h-[44px]'
+          const colorClass = isMine
+            ? 'border-pink-500 bg-pink-500/20 text-pink-200'
+            : 'border-gray-700 bg-gray-800 text-gray-500 hover:border-gray-500 hover:text-gray-300'
+          const opacityClass = isPending ? 'opacity-50' : ''
+          return (
+            <button
+              key={r}
+              onClick={() => onChange(r)}
+              disabled={saving}
+              className={baseClass + ' ' + colorClass + ' ' + opacityClass}
+            >
+              {r}
+            </button>
+          )
+        })}
+      </div>
+      <p className="text-xs text-gray-500 mt-3 leading-relaxed">
+        Each player picks their comfort level. The DM honours the most conservative active
+        setting. Slide it up or down anytime; the Narrator will notice.
+      </p>
+    </section>
+  )
+}
+
 export default function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   const [characterId, setCharacterId] = useState<string | null>(null)
   const [character, setCharacter] = useState<Character | null>(null)
@@ -580,7 +640,11 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   const [showLevelUp, setShowLevelUp] = useState(false)
   const [levelUpDismissed, setLevelUpDismissed] = useState(false)
   const [combatActive, setCombatActive] = useState(false)
+  const [activeCombatantName, setActiveCombatantName] = useState<string | null>(null)
   const [showActionPanel, setShowActionPanel] = useState(false)
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null)
+  const [savingRating, setSavingRating] = useState(false)
+  const [pendingRating, setPendingRating] = useState<string | null>(null)
 
   // Unwrap params (Next 15 async params)
   useEffect(() => {
@@ -590,22 +654,31 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   // Fetch initial data from server-side API route
   useEffect(() => {
     if (!characterId) return
-
     setLoading(true)
-    fetch(`/api/players/${characterId}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json() as Promise<Character>
-      })
-      .then((data) => {
-        setCharacter(data)
-        setLoading(false)
-      })
-      .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : 'Unknown error'
-        setError(`Failed to load character: ${msg}`)
-        setLoading(false)
-      })
+    let aborted = false
+    async function load() {
+      try {
+        const res = await fetch(`/api/players/${characterId}`)
+        if (!res.ok) {
+          let body = ''
+          try { body = await res.text() } catch { /* ignore */ }
+          throw new Error(`HTTP ${res.status}${body ? ` — ${body.slice(0, 200)}` : ''}`)
+        }
+        const data = (await res.json()) as Character
+        if (!aborted) {
+          setCharacter(data)
+          setLoading(false)
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (!aborted) {
+          setError(msg)
+          setLoading(false)
+        }
+      }
+    }
+    load()
+    return () => { aborted = true }
   }, [characterId])
 
   // Realtime subscription — updates HP, conditions, inventory, etc. live
@@ -651,37 +724,89 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     else if (!eligible) setShowLevelUp(false)
   }, [character?.xp, character?.level, levelUpDismissed]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Combat state subscription via game_state Realtime (POL-02)
+  // Combat state subscription via game_state Realtime (POL-02).
+  // Also tracks the current "active combatant" so we can show a turn banner.
   useEffect(() => {
     if (!character?.session_id) return
 
     const supabase = getRealtimeClient()
     if (!supabase) return
 
-    // Fetch current combat state once
+    type CSLite = { active?: boolean; initiative?: Array<{ name: string }> }
+    const applyCombat = (cs: CSLite | null) => {
+      setCombatActive(cs?.active === true)
+      const top = cs?.initiative?.[0]?.name ?? null
+      setActiveCombatantName(top)
+    }
+
     fetch(`/api/sessions/${character.session_id}/state`)
       .then(r => r.json())
-      .then(state => {
-        const cs = state?.combat_state as { active?: boolean } | null
-        setCombatActive(cs?.active === true)
-      })
+      .then(state => applyCombat((state?.combat_state ?? null) as CSLite | null))
       .catch(() => {})
 
-    // Subscribe to game_state changes
     const channel = supabase
       .channel('game-state-' + character.session_id)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'game_state', filter: `session_id=eq.${character.session_id}` },
         (payload) => {
-          const cs = (payload.new as Record<string, unknown>)?.combat_state as { active?: boolean } | null
-          setCombatActive(cs?.active === true)
+          const cs = (payload.new as Record<string, unknown>)?.combat_state as CSLite | null
+          applyCombat(cs)
         }
       )
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [character?.session_id])
+
+  // Fetch session info (Date Night Mode / current rating); polls every 5s for partner-side changes.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => {
+    if (!character?.session_id) return
+    let cancelled = false
+    const sid = character.session_id
+    async function load() {
+      try {
+        const res = await fetch(`/api/sessions/${sid}`)
+        if (!res.ok) return
+        const data = (await res.json()) as SessionInfo
+        if (!cancelled) setSessionInfo(data)
+      } catch {
+        // silent
+      }
+    }
+    load()
+    const t = setInterval(load, 5000)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [character?.session_id])
+
+  const isMyTurn = Boolean(
+    combatActive && character && activeCombatantName && activeCombatantName === character.character_name,
+  )
+
+  async function handleRatingChange(newRating: string) {
+    if (!character) return
+    if (savingRating) return
+    setSavingRating(true)
+    setPendingRating(newRating)
+    try {
+      const res = await fetch(`/api/players/${character.id}/rating`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: newRating }),
+      })
+      const data = await res.json()
+      if (data?.ok) {
+        setCharacter((c) => (c ? { ...c, rating_preference: newRating } : c))
+        setSessionInfo((s) => (s ? { ...s, current_rating: data.session_rating } : s))
+      }
+    } catch {
+      // silent — keep prior preference visible
+    } finally {
+      setSavingRating(false)
+      setPendingRating(null)
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Render states
@@ -698,7 +823,21 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   if (error || !character) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
-        <p className="text-red-400 text-center text-base">{error ?? 'Character not found.'}</p>
+        <div className="max-w-sm w-full bg-gray-900 rounded-2xl p-6 border border-red-700 space-y-4">
+          <h2 className="text-red-400 font-bold text-lg">Couldn&apos;t load this character.</h2>
+          <p className="text-red-300 text-sm break-words">{error ?? 'Character not found.'}</p>
+          <p className="text-gray-400 text-xs leading-relaxed">
+            If your phone reached this URL but the API call failed, the most likely causes are:
+          </p>
+          <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
+            <li>Your laptop&apos;s dev server is bound to <code className="text-purple-300">localhost</code>, so your phone can&apos;t reach it. Open the app at your laptop&apos;s LAN IP (e.g. <code className="text-purple-300">http://192.168.x.x:3000</code>) and re-scan.</li>
+            <li>The Supabase migrations haven&apos;t been run yet on the project this session is talking to.</li>
+            <li>Your <code className="text-purple-300">.env.local</code> is missing the Supabase env vars on the server.</li>
+          </ul>
+          <p className="text-gray-500 text-xs break-all">
+            URL: <code>{typeof window !== 'undefined' ? window.location.href : ''}</code>
+          </p>
+        </div>
       </div>
     )
   }
@@ -769,6 +908,16 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
       )}
 
       <div className="px-4 space-y-5 mt-5">
+        {/* Active-turn banner — shown when this character is at the top of initiative.
+            Map lives on the host screen only, so we point the player there. */}
+        {isMyTurn && (
+          <div className="w-full py-4 px-4 bg-gradient-to-r from-yellow-700 to-amber-700 border-2 border-yellow-400 text-yellow-50 rounded-2xl text-center shadow-lg animate-pulse">
+            <p className="text-xs font-semibold uppercase tracking-widest text-yellow-200">Your Turn</p>
+            <p className="text-base font-bold mt-1">Move your token at the host screen.</p>
+            <p className="text-xs mt-1 opacity-80">Then take an action below.</p>
+          </div>
+        )}
+
         {/* Level-up banner */}
         {!showLevelUp && xpForNextLevel(character.level) !== null && character.xp >= (xpForNextLevel(character.level) ?? Infinity) && (
           <button
@@ -788,6 +937,17 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
             ⚔ Combat Actions &amp; Spells
           </button>
         )}
+
+        {/* Date Night — content rating dial. Only shown when the session has Date Night Mode enabled. */}
+        {sessionInfo?.date_night_mode ? (
+          <RatingDial
+            current={character.rating_preference ?? 'PG'}
+            sessionRating={sessionInfo.current_rating ?? 'PG'}
+            saving={savingRating}
+            pending={pendingRating}
+            onChange={handleRatingChange}
+          />
+        ) : null}
 
         {/* ---------------------------------------------------------------- */}
         {/* 2. HP section                                                      */}

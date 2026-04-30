@@ -45,7 +45,7 @@ export async function GET(
     const { data, error } = await supabase
       .from('characters')
       .select(
-        'id, session_id, character_name, player_name, class, race, level, xp, hp, max_hp, ac, stats, saving_throws, skills, inventory, spell_slots, conditions, drinks_consumed, personality_traits, death_saves_successes, death_saves_failures, is_stable'
+        'id, session_id, character_name, player_name, class, race, level, xp, hp, max_hp, ac, stats, saving_throws, skills, inventory, spell_slots, conditions, drinks_consumed, personality_traits, death_saves_successes, death_saves_failures, is_stable, rating_preference'
       )
       .eq('id', id)
       .single()

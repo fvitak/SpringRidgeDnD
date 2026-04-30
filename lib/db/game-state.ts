@@ -14,6 +14,8 @@ export interface GameState {
   narrative_context: string | null
   combat_state: unknown | null
   pending_roll: unknown | null
+  current_scene_id?: string | null
+  tokens?: unknown
   updated_at?: string
 }
 

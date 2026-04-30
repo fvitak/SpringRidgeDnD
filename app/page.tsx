@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback, KeyboardEvent, Suspense } fro
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import QRCode from 'qrcode'
+import Map, { type SceneData } from './components/Map'
+import type { MapToken } from '@/lib/movement/validate-move'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -16,9 +18,13 @@ interface SessionInfo {
   join_token: string
   player_count: number
   name: string
+  scenario_id?: string | null
+  date_night_mode?: boolean
+  current_rating?: string
 }
 
 interface PlayerSlot {
+  id?: string
   slot: number
   character_name: string | null
 }
@@ -268,11 +274,29 @@ function PartySidebar({
 // Session Creation Modal
 // ---------------------------------------------------------------------------
 
+// Static catalogue used by the picker — keep in sync with lib/scenarios/registry.ts.
+const SCENARIO_OPTIONS = [
+  { id: 'wild-sheep-chase', name: 'The Wild Sheep Chase',           minPlayers: 2, maxPlayers: 4, supportsDateNight: false },
+  { id: 'blackthorn-clan',  name: 'Rescue of the Blackthorn Clan',  minPlayers: 2, maxPlayers: 2, supportsDateNight: true  },
+  { id: 'random-encounter', name: 'Random Encounter (Combat Test)', minPlayers: 2, maxPlayers: 4, supportsDateNight: false },
+] as const
+
 function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) => void }) {
-  const [adventureName, setAdventureName] = useState('The Wild Sheep Chase')
+  const [scenarioId, setScenarioId] = useState<string>('wild-sheep-chase')
   const [playerCount, setPlayerCount] = useState<2 | 3 | 4>(4)
+  const [dateNightMode, setDateNightMode] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const scenario = SCENARIO_OPTIONS.find((s) => s.id === scenarioId) ?? SCENARIO_OPTIONS[0]
+
+  // Whenever the scenario changes, snap player count into the supported range.
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+  useEffect(() => {
+    if (playerCount > scenario.maxPlayers) setPlayerCount(scenario.maxPlayers as 2 | 3 | 4)
+    else if (playerCount < scenario.minPlayers) setPlayerCount(scenario.minPlayers as 2 | 3 | 4)
+    if (!scenario.supportsDateNight) setDateNightMode(false)
+  }, [scenarioId])
 
   async function handleBeginAdventure() {
     setIsCreating(true)
@@ -281,7 +305,12 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
       const res = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: adventureName, player_count: playerCount }),
+        body: JSON.stringify({
+          scenario_id: scenarioId,
+          name: scenario.name,
+          player_count: playerCount,
+          date_night_mode: dateNightMode,
+        }),
       })
       if (!res.ok) {
         const data = await res.json()
@@ -292,7 +321,10 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
         session_id: data.session_id,
         join_token: data.join_token,
         player_count: playerCount,
-        name: adventureName,
+        name: scenario.name,
+        scenario_id: scenarioId,
+        date_night_mode: dateNightMode,
+        current_rating: 'PG',
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -320,34 +352,64 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
         <div className="flex flex-col gap-1.5">
           <label className="text-white text-sm font-medium">Adventure</label>
           <select
-            value={adventureName}
-            onChange={(e) => setAdventureName(e.target.value)}
+            value={scenarioId}
+            onChange={(e) => setScenarioId(e.target.value)}
             className="w-full bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm min-h-[44px] focus:outline-none focus:ring-2 focus:ring-purple-500"
           >
-            <option className="bg-gray-900" value="The Wild Sheep Chase">The Wild Sheep Chase</option>
-            <option className="bg-gray-900" value="Random Encounter">Random Encounter (Combat Test)</option>
+            {SCENARIO_OPTIONS.map((s) => (
+              <option key={s.id} className="bg-gray-900" value={s.id}>{s.name}</option>
+            ))}
           </select>
         </div>
 
-        {/* Player count */}
+        {/* Player count — locked to a fixed value when the scenario requires it */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-white text-sm font-medium">Number of Players</label>
+          <label className="text-white text-sm font-medium">
+            Number of Players
+            {scenario.minPlayers === scenario.maxPlayers && (
+              <span className="text-white/50 text-xs ml-2 font-normal">(fixed at {scenario.minPlayers})</span>
+            )}
+          </label>
           <div className="grid grid-cols-3 gap-3">
-            {([2, 3, 4] as const).map((n) => (
-              <button
-                key={n}
-                onClick={() => setPlayerCount(n)}
-                className={`rounded-xl border-2 py-3 text-2xl font-bold min-h-[44px] transition-all ${
-                  playerCount === n
-                    ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/20'
-                    : 'border-white/20 bg-white/10 text-white/60 hover:border-white/40 hover:text-white'
-                }`}
-              >
-                {n}
-              </button>
-            ))}
+            {([2, 3, 4] as const).map((n) => {
+              const allowed = n >= scenario.minPlayers && n <= scenario.maxPlayers
+              return (
+                <button
+                  key={n}
+                  onClick={() => allowed && setPlayerCount(n)}
+                  disabled={!allowed}
+                  className={`rounded-xl border-2 py-3 text-2xl font-bold min-h-[44px] transition-all ${
+                    !allowed
+                      ? 'border-white/10 bg-white/5 text-white/20 cursor-not-allowed'
+                      : playerCount === n
+                      ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/20'
+                      : 'border-white/20 bg-white/10 text-white/60 hover:border-white/40 hover:text-white'
+                  }`}
+                >
+                  {n}
+                </button>
+              )
+            })}
           </div>
         </div>
+
+        {/* Date Night mode toggle — only shown when the scenario supports it */}
+        {scenario.supportsDateNight && (
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={dateNightMode}
+              onChange={(e) => setDateNightMode(e.target.checked)}
+              className="w-5 h-5 rounded border-white/30 bg-white/10 accent-pink-500"
+            />
+            <span className="flex-1">
+              <span className="text-white text-sm font-medium block">Date Night Mode</span>
+              <span className="text-white/60 text-xs">
+                Each player picks a content rating on their phone. The DM honours the most conservative.
+              </span>
+            </span>
+          </label>
+        )}
 
         {/* Error */}
         {error && (
@@ -357,7 +419,7 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
         {/* Begin button */}
         <button
           onClick={handleBeginAdventure}
-          disabled={isCreating || !adventureName.trim()}
+          disabled={isCreating}
           className="w-full py-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-colors shadow-lg min-h-[44px]"
         >
           {isCreating ? 'Creating adventure...' : 'Begin Adventure'}
@@ -429,6 +491,11 @@ function QRPlayerModal({
           <div className="w-[220px] h-[220px] rounded-lg bg-gray-100 animate-pulse" />
         )}
         <p className="text-gray-400 text-xs text-center break-all">{url}</p>
+        {/^https?:\/\/(localhost|127\.0\.0\.1)/.test(url) && (
+          <p className="text-amber-400 text-xs text-center px-2 leading-relaxed">
+            Your phone can&apos;t reach <code>localhost</code>. Open this app on your laptop at its LAN IP (e.g. <code>http://192.168.x.x:3000</code>) and try the QR again.
+          </p>
+        )}
         <button
           onClick={onClose}
           className="mt-1 px-6 py-2 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-700 transition-colors"
@@ -467,8 +534,8 @@ function LobbyScreen({
       try {
         const res = await fetch(`/api/sessions/${session.session_id}/players`)
         if (!res.ok) return
-        const data: Array<{ slot: number; character_name: string }> = await res.json()
-        if (!cancelled) setPlayers(data)
+        const data: Array<{ id: string; slot: number; character_name: string }> = await res.json()
+        if (!cancelled) setPlayers(data as PlayerSlot[])
       } catch {
         // silent — polling
       }
@@ -527,17 +594,42 @@ function LobbyScreen({
                   Player {slot}
                 </p>
 
-                {qrUrl ? (
-                  <QRCodeImage url={qrUrl} size={140} />
-                ) : (
-                  <div className="w-[140px] h-[140px] rounded-lg bg-gray-800 animate-pulse" />
-                )}
+                {(() => {
+                  // For joined slots that already have a character id, the QR
+                  // points directly at the mobile sheet — no character creator
+                  // step needed (Blackthorn pre-builds Wynn + Tarric).
+                  const playerRow = players.find((p) => p.slot === slot)
+                  const sheetUrl = host && playerRow?.id
+                    ? `https://${host}/player/${playerRow.id}`
+                    : ''
+                  const targetUrl = joined ? sheetUrl : qrUrl
+                  return targetUrl ? (
+                    <QRCodeImage url={targetUrl} size={140} />
+                  ) : (
+                    <div className="w-[140px] h-[140px] rounded-lg bg-gray-800 animate-pulse" />
+                  )
+                })()}
 
                 <div className="text-center w-full">
                   {joined ? (
-                    <p className="text-purple-400 font-semibold text-sm">
-                      {playerName ?? 'Joined'}
-                    </p>
+                    <div className="space-y-1">
+                      <p className="text-purple-400 font-semibold text-sm">
+                        {playerName ?? 'Joined'}
+                      </p>
+                      {(() => {
+                        const playerRow = players.find((p) => p.slot === slot)
+                        return playerRow?.id ? (
+                          <a
+                            href={`/player/${playerRow.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-block text-xs text-gray-400 hover:text-purple-300 underline"
+                          >
+                            Open sheet
+                          </a>
+                        ) : null
+                      })()}
+                    </div>
                   ) : (
                     <a
                       href={`/character-create?session_id=${session.session_id}&slot=${slot}&count=${session.player_count}`}
@@ -863,6 +955,21 @@ function TurnQueueStrip({
 // Narration / Guide Screen
 // ---------------------------------------------------------------------------
 
+// Convert a "[DM]: ..." kick line into a clean scenario header. We deliberately
+// hide the spoiler-laden direction text from the players; the AI still receives
+// the full kick because it lives in the event log's player_input.
+function renderDmKickHeader(input: string): string {
+  const body = input.replace(/^\[DM\]:\s*/, '').trim()
+  // Try to extract "Scenario N" + a perspective phrase, ignore the rest.
+  const scenarioMatch = body.match(/Scenario\s+\w+/i)
+  const perspectiveMatch = body.match(/from\s+([A-Z][\w']+)(?:'s)?\s+(?:vantage|perspective|POV)/i)
+  if (scenarioMatch && perspectiveMatch) {
+    return `${scenarioMatch[0]} — from ${perspectiveMatch[1]}'s perspective`
+  }
+  if (scenarioMatch) return scenarioMatch[0]
+  return 'The Adventure Begins'
+}
+
 function NarrationScreen({ session }: { session: SessionInfo }) {
   const [log, setLog] = useState<LogEntry[]>([])
   const [input, setInput] = useState('')
@@ -875,6 +982,9 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const [restartKey, setRestartKey] = useState(0)
   const [qrMember, setQrMember] = useState<PartyMember | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  // Map state — scene + tokens — refreshed every 4s and on move commit.
+  const [mapScene, setMapScene] = useState<SceneData | null>(null)
+  const [mapTokens, setMapTokens] = useState<MapToken[]>([])
   // Turn queue state
   const [turnQueue, setTurnQueue] = useState<string[]>([])
   const [currentTurnIdx, setCurrentTurnIdx] = useState(0)
@@ -907,6 +1017,25 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
       input.focus()
     }, 0)
   }
+
+  // Fetch active scene + tokens for the host map.
+  const fetchMap = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/map`)
+      if (!res.ok) return
+      const data: { scene: SceneData | null; tokens: MapToken[] } = await res.json()
+      setMapScene(data.scene)
+      setMapTokens(Array.isArray(data.tokens) ? data.tokens : [])
+    } catch {
+      // silent — polling
+    }
+  }, [sessionId])
+
+  useEffect(() => {
+    fetchMap()
+    const interval = setInterval(fetchMap, 4000)
+    return () => clearInterval(interval)
+  }, [fetchMap])
 
   // Fetch party data (for sidebar + character buttons)
   const fetchParty = useCallback(async () => {
@@ -969,20 +1098,26 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     loadHistory()
   }, [sessionId])
 
-  // Auto-trigger combat for Random Encounter mode
+  // Auto-fire the scenario's opening kick on first turn.
+  // Keep these strings in sync with lib/scenarios/registry.ts.
   useEffect(() => {
     if (loadingHistory) return
-    if (session.name !== 'Random Encounter') return
     if (log.length > 0 || isStreaming || isTyping) return
-    handleSubmit('[DM]: Combat test mode. Invent a party of 4 adventurers — give them names and classes (Fighter, Rogue, Cleric, Wizard). They are ambushed on a forest road by 3 bandits and a bandit captain. Roll initiative for all enemies. Request initiative rolls from each player character. Begin combat.')
-  }, [loadingHistory, restartKey]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-start Wild Sheep Chase intro
-  useEffect(() => {
-    if (loadingHistory) return
-    if (session.name !== 'The Wild Sheep Chase') return
-    if (log.length > 0 || isStreaming || isTyping) return
-    handleSubmit('[DM]: Begin the adventure. Set the scene at The Wooly Flagon tavern in Millhaven.')
+    const kicks: Record<string, string> = {
+      'wild-sheep-chase':
+        '[DM]: Begin the adventure. Set the scene at The Wooly Flagon tavern in Millhaven.',
+      'blackthorn-clan':
+        "[DM]: Open Scenario 1 — from Tarric's perspective.",
+      'random-encounter':
+        '[DM]: Combat test mode. Invent a party of 4 adventurers — give them names and classes (Fighter, Rogue, Cleric, Wizard). They are ambushed on a forest road by 3 bandits and a bandit captain. Roll initiative for all enemies. Request initiative rolls from each player character. Begin combat.',
+    }
+    let kick: string | undefined = session.scenario_id ? kicks[session.scenario_id] : undefined
+    if (!kick) {
+      if (session.name === 'The Wild Sheep Chase') kick = kicks['wild-sheep-chase']
+      else if (session.name.startsWith('Random Encounter')) kick = kicks['random-encounter']
+      else if (session.name.includes('Blackthorn')) kick = kicks['blackthorn-clan']
+    }
+    if (kick) handleSubmit(kick)
   }, [loadingHistory, restartKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom whenever log changes
@@ -1304,10 +1439,13 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
         </button>
       </header>
 
-      {/* Main content: narration + sidebar */}
+      {/* Main content: narration on the left (flex-1, internal scroll), map
+           on the right (flex-shrink-0, bounded width). Sidebar stays on the
+           far right. Input bar lives in the footer. */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Narration log — flex-1 fills remaining width */}
-        <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        {/* Narration column — scrolls inside its own box. */}
+        <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+          <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6 min-h-0">
           {loadingHistory && (
             <p className="text-gray-500 text-sm italic">Loading session history...</p>
           )}
@@ -1321,12 +1459,27 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
           {log.map((entry, i) => {
             const isLastEntry = i === log.length - 1
             const showCursor = isTyping && isLastEntry && !entry.error
+            // System tags are never surfaced verbatim. [Movement] and
+            // [RATING_CHANGE] are noise for players; [DM] kicks are author
+            // metadata that gives the scenario away.
+            const pi = entry.player_input ?? ''
+            if (pi.startsWith('[Movement]') || pi.startsWith('[RATING_CHANGE]')) {
+              return null
+            }
+            const isDmKick = pi.startsWith('[DM]:')
+            const displayInput = isDmKick
+              ? renderDmKickHeader(pi)
+              : pi
             return (
               <div key={i} className="space-y-2">
-                <p className="text-gray-400 text-sm">
-                  <span className="mr-2 text-gray-600">&gt;</span>
-                  {entry.player_input}
-                </p>
+                {isDmKick ? (
+                  <p className="text-purple-300 text-xs uppercase tracking-widest font-semibold">{displayInput}</p>
+                ) : (
+                  <p className="text-gray-400 text-sm">
+                    <span className="mr-2 text-gray-600">&gt;</span>
+                    {displayInput}
+                  </p>
+                )}
                 {entry.error ? (
                   <p className="text-red-400 text-sm italic">{entry.error}</p>
                 ) : (
@@ -1359,6 +1512,25 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
 
           <div ref={bottomRef} />
         </main>
+        </div>
+
+        {/* Map column — sits between narration and the party sidebar. */}
+        {mapScene && (
+          <div className="flex-shrink-0 flex items-center justify-center bg-gray-950 border-l border-gray-800 p-2" style={{ width: 'min(55vw, 60%)' }}>
+            <Map
+              sessionId={sessionId}
+              scene={mapScene}
+              tokens={mapTokens}
+              activeTokenId={(() => {
+                const top = combatState?.initiative?.[0]
+                if (!top) return null
+                const tok = mapTokens.find((t) => t.name === top.name)
+                return tok?.id ?? null
+              })()}
+              onMoveCommitted={fetchMap}
+            />
+          </div>
+        )}
 
         {/* UX-01: Party status sidebar — hidden on mobile */}
         <PartySidebar sessionId={sessionId} onInsertName={handleInsertName} combatState={combatState} onShowQR={setQrMember} />

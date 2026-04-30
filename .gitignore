@@ -16,3 +16,27 @@ out/
 # misc
 .DS_Store
 *.pem
+
+# Licensed third-party adventure assets (© Urban Realms etc.).
+# Frank chose to ship these in the repo (private use, single-tenant deployment).
+# If this app ever goes public, gitignore the line below and migrate to a
+# private Supabase Storage bucket via scripts/upload-blackthorn-assets.ts.
+# public/maps/blackthorn/
+_assets/
+
+# Source PDFs of published adventures (NOT the rendered maps; just the full book).
+# These are the original files Frank purchased — do not commit.
+*.pdf
+
+# Local dev-server log spillover
+next-dev.log
+next-dev.err.log
+
+# Stray Windows-side npm cache artefact
+UsersfvitaAppDataRoamingnpm/
+
+# Claude Code ephemeral worktrees (never commit these)
+.claude/worktrees/
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo

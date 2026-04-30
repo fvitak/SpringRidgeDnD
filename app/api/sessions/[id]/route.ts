@@ -12,7 +12,7 @@ export async function GET(
     const supabase = getSupabase()
     const { data, error } = await supabase
       .from('sessions')
-      .select('id, name, join_token, player_count')
+      .select('id, name, join_token, player_count, scenario_id, date_night_mode, current_rating')
       .eq('id', id)
       .single()
 
@@ -28,6 +28,9 @@ export async function GET(
       name: data.name,
       join_token: data.join_token,
       player_count: data.player_count,
+      scenario_id: data.scenario_id ?? null,
+      date_night_mode: Boolean(data.date_night_mode),
+      current_rating: data.current_rating ?? 'PG',
     })
   } catch (err) {
     console.error('Failed to fetch session:', err)

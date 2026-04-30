@@ -1,10 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest } from 'next/server'
-import { buildSystemPrompt } from '@/lib/prompts/wild-sheep-chase'
 import { parseDMResponse } from '@/lib/schemas/dm-response'
 import { getEventLog, appendEventLog } from '@/lib/db/event-log'
 import { getGameState } from '@/lib/db/game-state'
 import { applyStateChanges } from '@/lib/db/apply-state-changes'
+import { getSupabase } from '@/lib/supabase'
+import { getScenario, getScenarioByName } from '@/lib/scenarios/registry'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -48,6 +49,61 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     // Non-fatal — proceed with null game state rather than failing the whole request
     console.error('Failed to fetch game state:', err)
+  }
+
+  // 2a. Resolve which scenario this session belongs to (drives prompt + opening kick).
+  let scenarioId: string | null = null
+  let sessionName: string | null = null
+  let dateNightMode = false
+  let currentRating = 'PG'
+  let currentSceneId: string | null = null
+  let currentSceneRow: Record<string, unknown> | null = null
+  try {
+    const supabase = getSupabase()
+    const { data: sessRow } = await supabase
+      .from('sessions')
+      .select('scenario_id, name, date_night_mode, current_rating')
+      .eq('id', session_id)
+      .maybeSingle()
+    if (sessRow) {
+      scenarioId = (sessRow.scenario_id as string | null) ?? null
+      sessionName = (sessRow.name as string | null) ?? null
+      dateNightMode = Boolean(sessRow.date_night_mode)
+      currentRating = (sessRow.current_rating as string | null) ?? 'PG'
+    }
+    // Read current scene off game_state, then hydrate the scene row.
+    if (game_state && (game_state as { current_scene_id?: string }).current_scene_id) {
+      currentSceneId = (game_state as { current_scene_id?: string }).current_scene_id ?? null
+      if (currentSceneId) {
+        const { data: sceneRow } = await supabase
+          .from('scenes')
+          .select('id, name, grid_cols, grid_rows, walkable, regions, exits')
+          .eq('id', currentSceneId)
+          .maybeSingle()
+        if (sceneRow) currentSceneRow = sceneRow
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch session/scenario:', err)
+  }
+
+  const scenario = scenarioId
+    ? getScenario(scenarioId)
+    : getScenarioByName(sessionName)
+
+  // Compose the gameState object passed into the prompt builder. Includes the
+  // active scene hydrated from `scenes`, the live tokens from game_state, and
+  // the rating dial state.
+  const gameStateForPrompt: Record<string, unknown> = {
+    ...(game_state ?? {}),
+    current_rating: currentRating,
+    date_night_mode: dateNightMode,
+    current_scene: currentSceneRow
+      ? {
+          ...currentSceneRow,
+          tokens: (game_state as { tokens?: unknown })?.tokens ?? [],
+        }
+      : null,
   }
 
   // 3. Fetch last 6 event log entries for this session (3 full exchanges)
@@ -108,7 +164,7 @@ export async function POST(req: NextRequest) {
           system: [
             {
               type: "text" as const,
-              text: buildSystemPrompt(game_state),
+              text: scenario.buildSystemPrompt(gameStateForPrompt),
               cache_control: { type: "ephemeral" as const },
             },
           ],

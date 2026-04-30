@@ -15,7 +15,7 @@ export async function GET(
     const supabase = getSupabase()
     const { data, error } = await supabase
       .from('characters')
-      .select('slot, character_name')
+      .select('id, slot, character_name')
       .eq('session_id', id)
       .order('slot')
 
