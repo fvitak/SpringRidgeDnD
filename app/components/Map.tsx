@@ -16,7 +16,6 @@
  * No phone version — per ADR 2026-04-28, map is host-only.
  */
 
-import Image from 'next/image'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { validateMove, type MapToken } from '@/lib/movement/validate-move'
 import type { WalkableMask } from '@/lib/movement/walkable'
@@ -190,19 +189,16 @@ export default function Map({
   return (
     <div ref={containerRef} className="relative inline-block bg-black/30 rounded-xl p-2 border border-gray-800">
       <div
-        className="relative select-none"
-        style={{ width, height }}
+        className="relative select-none rounded-lg overflow-hidden"
+        style={{
+          width,
+          height,
+          backgroundImage: `url(${scene.image_path})`,
+          backgroundSize: '100% 100%',
+          backgroundRepeat: 'no-repeat',
+        }}
         onMouseLeave={() => setHoverCell(null)}
       >
-        <Image
-          src={scene.image_path}
-          alt={scene.name}
-          fill
-          sizes={`${width}px`}
-          className="object-cover rounded-lg pointer-events-none"
-          priority
-        />
-
         <svg
           width={width}
           height={height}

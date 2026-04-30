@@ -1349,10 +1349,19 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     const pendingAction = pendingPlayerActions[currentPlayer]
     const trimmed = input.trim()
     const rollNum = Number(trimmed)
-    const effectiveInput =
-      pendingAction?.type === 'roll' && trimmed !== '' && Number.isInteger(rollNum) && rollNum >= 1
-        ? `[${currentPlayer}] rolled ${rollNum} — ${pendingAction.description}`
-        : `[${currentPlayer}]: ${trimmed}`
+    const isRollPending = pendingAction?.type === 'roll'
+    const isNumeric = trimmed !== '' && Number.isInteger(rollNum) && rollNum >= 1
+
+    // During a roll prompt, non-numeric input is a question — send as aside without consuming the turn.
+    if (isRollPending && !isNumeric) {
+      setInput('')
+      handleAskDM(trimmed)
+      return
+    }
+
+    const effectiveInput = isRollPending && isNumeric
+      ? `[${currentPlayer}] rolled ${rollNum} — ${pendingAction.description}`
+      : `[${currentPlayer}]: ${trimmed}`
     const newCommitted = { ...committedActions, [currentPlayer]: effectiveInput }
     setInput('')
     setNudgeText(null)
@@ -1372,18 +1381,22 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     }
   }
 
-  async function handleAskDM() {
+  async function handleAskDM(questionText?: string) {
     const currentPlayer = turnQueue[currentTurnIdx]
     if (!currentPlayer || isStreaming || isTyping || isAskingDM) return
     setIsAskingDM(true)
     setNudgeText(null)
+
+    const prompt = questionText
+      ? `[${currentPlayer}] asks the Guide: ${questionText}`
+      : `[${currentPlayer}] aside: Just a nudge — one sentence, narrator voice. What might ${currentPlayer} notice or want to consider right now? Don't decide for them.`
 
     try {
       const res = await fetch('/api/dm-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          player_input: `[${currentPlayer}] aside: Just a nudge — one sentence, narrator voice. What might ${currentPlayer} notice or want to consider right now? Don't decide for them.`,
+          player_input: prompt,
           session_id: sessionId,
         }),
       })
@@ -1516,7 +1529,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
 
         {/* Map column — sits between narration and the party sidebar. */}
         {mapScene && (
-          <div className="flex-shrink-0 flex items-center justify-center bg-gray-950 border-l border-gray-800 p-2" style={{ width: 'min(55vw, 60%)' }}>
+          <div className="flex-shrink-0 flex items-center justify-center bg-gray-950 border-l border-gray-800 p-2" style={{ width: 'min(44vw, 680px)' }}>
             <Map
               sessionId={sessionId}
               scene={mapScene}
@@ -1582,7 +1595,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                     )}
                   </div>
                   <button
-                    onClick={handleAskDM}
+                    onClick={() => handleAskDM()}
                     disabled={isBusy || isAskingDM}
                     className="text-xs text-gray-500 hover:text-purple-400 transition-colors disabled:opacity-40"
                   >
@@ -1632,15 +1645,13 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
               <div className="flex gap-3">
                 <input
                   ref={inputRef}
-                  type={activePendingAction?.type === 'roll' ? 'number' : 'text'}
-                  min={activePendingAction?.type === 'roll' ? 1 : undefined}
-                  max={activePendingAction?.type === 'roll' ? 30 : undefined}
+                  type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handlePlayerSubmit() }}
                   placeholder={
                     isBusy ? 'The Guide is speaking...'
-                    : activePendingAction?.type === 'roll' ? 'Enter your d20 result (1–30)...'
+                    : activePendingAction?.type === 'roll' ? 'Enter roll result, or ask the Guide a question...'
                     : placeholder
                   }
                   disabled={isBusy}
