@@ -105,17 +105,19 @@ export default function SceneAlignEditor({ scene }: Props) {
     setSaveState('saving')
     setSaveError(null)
     try {
+      // cell_w_px requires migration 20260430000001 — omit until it's been run
+      const payload: Record<string, number> = {
+        grid_cols:   geo.grid_cols,
+        grid_rows:   geo.grid_rows,
+        cell_px:     geo.cell_h_px,
+        origin_x_px: geo.origin_x_px,
+        origin_y_px: geo.origin_y_px,
+      }
+      if (scene.cell_w_px !== null) payload.cell_w_px = geo.cell_w_px
       const res = await fetch(`/api/admin/scenes/${scene.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          grid_cols:   geo.grid_cols,
-          grid_rows:   geo.grid_rows,
-          cell_px:     geo.cell_h_px,
-          cell_w_px:   geo.cell_w_px,
-          origin_x_px: geo.origin_x_px,
-          origin_y_px: geo.origin_y_px,
-        }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -138,6 +140,11 @@ export default function SceneAlignEditor({ scene }: Props) {
         <Field label="grid_rows"   value={geo.grid_rows}   min={1}    max={80}  onChange={(v) => set('grid_rows', v)} />
         <Field label="cell_h_px"   value={geo.cell_h_px}   min={8}    max={200} onChange={(v) => set('cell_h_px', v)} />
         <Field label="cell_w_px"   value={geo.cell_w_px}   min={8}    max={200} onChange={(v) => set('cell_w_px', v)} />
+        {scene.cell_w_px === null && (
+          <p style={{ fontSize: '0.75rem', color: '#888', marginTop: '-0.25rem', marginBottom: '0.5rem', paddingLeft: 110 }}>
+            Run migration 20260430000001 to save cell_w_px
+          </p>
+        )}
         <Field label="origin_x_px" value={geo.origin_x_px} min={-200} max={500} onChange={(v) => set('origin_x_px', v)} />
         <Field label="origin_y_px" value={geo.origin_y_px} min={-200} max={500} onChange={(v) => set('origin_y_px', v)} />
 
