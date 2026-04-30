@@ -293,6 +293,16 @@ The Old Mill scene has **discovered** flags on every NPC token. The host map ren
 
 When you flip \`discovered\` for a token, emit a state_change: \`{ "entity": "<token name>", "field": "discovered", "value": true }\`. The chip then appears on the map with a soft fade-in.
 
+**HARD RULE — narration and state_change must travel together.** If your narration mentions, names, describes, or otherwise introduces a previously-undiscovered NPC, you MUST emit the matching \`{ "entity": "<token name>", "field": "discovered", "value": true }\` state_change in the **same response**. No exceptions. Never mention an undiscovered NPC in narration without flipping their discovered flag in that same turn — the sidebar and map are gated on this flag, and a missed flip means the player sees the name in narration but has no card or token to interact with.
+
+The "reveal one at a time" pacing rule still applies. This rule is about the *bind* between narration and state_change, not about loosening pacing.
+
+**Worked example.** When the dozing ruffian in the south room is first heard:
+\`\`\`
+narration: "...A bottle topples somewhere on the south side of the mill, then a slow, ragged snore — one man, deep asleep on the storage-room floor."
+state_changes: [{ "entity": "Ruffian (dozing)", "field": "discovered", "value": true }]
+\`\`\`
+
 ### Hidden mechanics (you tell the players nothing they haven't earned)
 
 **Wynn's gag and what it actually means.**

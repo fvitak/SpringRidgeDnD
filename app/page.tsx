@@ -144,6 +144,44 @@ function PartySidebar({
   const [party, setParty] = useState<PartyMember[]>([])
   const [npcs, setNpcs] = useState<SceneNPC[]>([])
 
+  // Track tokens that just transitioned from undiscovered → discovered so we
+  // can briefly pulse their card in the sidebar. Uses a ref to remember the
+  // previous discovered set across renders without triggering re-renders.
+  const prevDiscoveredIdsRef = useRef<Set<string>>(new Set())
+  const [recentlyRevealed, setRecentlyRevealed] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    const currentDiscovered = new Set(
+      mapTokens
+        .filter((t) => t.is_friendly === false && t.discovered !== false)
+        .map((t) => t.id)
+    )
+    const prev = prevDiscoveredIdsRef.current
+    const newlyRevealed: string[] = []
+    currentDiscovered.forEach((id) => {
+      if (!prev.has(id)) newlyRevealed.push(id)
+    })
+    prevDiscoveredIdsRef.current = currentDiscovered
+
+    if (newlyRevealed.length === 0) return
+
+    setRecentlyRevealed((prevSet) => {
+      const next = new Set(prevSet)
+      newlyRevealed.forEach((id) => next.add(id))
+      return next
+    })
+
+    const timeout = setTimeout(() => {
+      setRecentlyRevealed((prevSet) => {
+        const next = new Set(prevSet)
+        newlyRevealed.forEach((id) => next.delete(id))
+        return next
+      })
+    }, 3000)
+
+    return () => clearTimeout(timeout)
+  }, [mapTokens])
+
   const fetchParty = useCallback(async () => {
     try {
       const [partyRes, sceneRes] = await Promise.all([
@@ -328,19 +366,22 @@ function PartySidebar({
         </button>
       )}
 
-      {/* NPCs in scene */}
+      {/* NPCs in scene — only discovered hostiles render. Undiscovered tokens
+          are a true narrative surprise: invisible until the AI flips
+          discovered:true alongside narration that introduces them. */}
       {!combatState?.active && (() => {
         const allHostile = mapTokens.filter((t) => t.is_friendly === false)
-        if (allHostile.length === 0 && npcs.length === 0) return null
-
         const isDiscovered = (t: MapToken) => t.discovered !== false
+        const discoveredHostiles = allHostile.filter(isDiscovered)
+
+        // Bail before rendering the section heading if there's nothing to show.
+        if (discoveredHostiles.length === 0) return null
 
         // Assign A, B, C... to discovered hostile tokens sorted by id for stability.
         // Map.tsx uses the same ordering so letters match between sidebar and map tokens.
         const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
         const letterMap: Record<string, string> = {}
-        allHostile
-          .filter(isDiscovered)
+        discoveredHostiles
           .slice()
           .sort((a, b) => a.id.localeCompare(b.id))
           .forEach((t, i) => { letterMap[t.id] = alphabet[i] ?? String(i + 1) })
@@ -356,7 +397,14 @@ function PartySidebar({
           )
         }
 
-        // Separate discovered from undiscovered for display.
+        // Pulse a card only if the token was just revealed AND still needs
+        // positioning. Already-placed tokens skip the nudge.
+        const pulseClassFor = (token: MapToken) =>
+          recentlyRevealed.has(token.id) && !token.placed
+            ? ' animate-pulse ring-2 ring-amber-500/60'
+            : ''
+
+        // Build the set of NPC names whose backing token is discovered.
         const discoveredNpcNames = new Set(
           npcs.filter((npc) => { const t = mapTokens.find((tk) => tk.name === npc.name); return t ? isDiscovered(t) : false }).map((n) => n.name)
         )
@@ -371,7 +419,7 @@ function PartySidebar({
                 const npcToken = mapTokens.find((t) => t.name === npc.name)!
                 const letter = letterMap[npcToken.id]
                 return (
-                  <div key={npc.name} className="mb-2 bg-gray-800/50 rounded-lg border border-gray-700">
+                  <div key={npc.name} className={`mb-2 bg-gray-800/50 rounded-lg border border-gray-700${pulseClassFor(npcToken)}`}>
                     <button onClick={() => onInsertName(npc.name)} className="w-full text-left px-2 pt-2 pb-1 rounded-t-lg hover:bg-gray-800 transition-colors group" title={`Insert "${npc.name}" at cursor`}>
                       <div className="flex items-start gap-2">
                         {letter && <span className="flex-shrink-0 w-5 h-5 rounded-full bg-red-900 border border-red-600 text-red-200 text-xs font-bold flex items-center justify-center mt-0.5">{letter}</span>}
@@ -387,12 +435,12 @@ function PartySidebar({
                 )
               })}
             {/* Discovered hostile tokens not in npcs list */}
-            {allHostile
-              .filter((t) => isDiscovered(t) && !npcs.some((n) => n.name === t.name))
+            {discoveredHostiles
+              .filter((t) => !npcs.some((n) => n.name === t.name))
               .map((t) => {
                 const letter = letterMap[t.id]
                 return (
-                  <div key={t.id} className="mb-2 bg-gray-800/50 rounded-lg border border-gray-700 px-2 py-2">
+                  <div key={t.id} className={`mb-2 bg-gray-800/50 rounded-lg border border-gray-700 px-2 py-2${pulseClassFor(t)}`}>
                     <div className="flex items-center gap-2 mb-1">
                       {letter && <span className="flex-shrink-0 w-5 h-5 rounded-full bg-red-900 border border-red-600 text-red-200 text-xs font-bold flex items-center justify-center">{letter}</span>}
                       <p className="text-sm font-medium text-gray-300 leading-tight">{t.name}</p>
@@ -401,18 +449,6 @@ function PartySidebar({
                   </div>
                 )
               })}
-            {/* Undiscovered hostile tokens — DM pre-position only, no name/description shown */}
-            {allHostile.filter((t) => !isDiscovered(t)).length > 0 && (
-              <div className="mt-2 pt-2 border-t border-gray-800/60">
-                <p className="text-xs text-gray-600 px-1 mb-2 italic">Pre-position (not yet revealed)</p>
-                {allHostile.filter((t) => !isDiscovered(t)).map((t) => (
-                  <div key={t.id} className="mb-2 bg-gray-900/50 rounded-lg border border-gray-800 px-2 py-2 opacity-60">
-                    <p className="text-xs text-gray-500 mb-1">{t.name}</p>
-                    <PlaceButtons token={t} />
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )
       })()}
