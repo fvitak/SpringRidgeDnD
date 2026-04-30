@@ -26,7 +26,10 @@ export interface SceneData {
   image_path: string
   grid_cols: number
   grid_rows: number
-  cell_px?: number
+  cell_px?: number | null
+  cell_w_px?: number | null
+  origin_x_px?: number | null
+  origin_y_px?: number | null
   walkable: WalkableMask
 }
 
@@ -65,6 +68,8 @@ export default function Map({
   const containerRef = useRef<HTMLDivElement>(null)
   // Responsive cell size — recomputed on container resize.
   const [cellSize, setCellSize] = useState<number>(38)
+  // Natural image dimensions — detected via hidden img element.
+  const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null)
 
   // Measure the parent container and pick a cell size that fits both axes.
   useLayoutEffect(() => {
@@ -92,6 +97,10 @@ export default function Map({
     }
   }, [scene.grid_cols, scene.grid_rows])
 
+  // Reset natural size when image changes (scene switch).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setImgNatural(null) }, [scene.image_path])
+
   // Reset selection when the active token changes.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
@@ -113,6 +122,31 @@ export default function Map({
 
   const width = scene.grid_cols * cellSize
   const height = scene.grid_rows * cellSize
+
+  // Compute background CSS so the source image's grid area aligns with the SVG overlay.
+  // cell_w_px / cell_px are source-image pixels per cell; origin_* is the grid's top-left
+  // offset within the source image.
+  const srcCellW = scene.cell_w_px ?? scene.cell_px ?? cellSize
+  const srcCellH = scene.cell_px ?? cellSize
+  const originX = scene.origin_x_px ?? 0
+  const originY = scene.origin_y_px ?? 0
+
+  // Scale: how many screen-pixels per source-image-pixel to make one source cell = cellSize.
+  const scaleX = cellSize / srcCellW
+  const scaleY = cellSize / srcCellH
+
+  const bgStyle: React.CSSProperties = imgNatural
+    ? {
+        backgroundImage: `url(${scene.image_path})`,
+        backgroundSize: `${imgNatural.w * scaleX}px ${imgNatural.h * scaleY}px`,
+        backgroundPosition: `${-originX * scaleX}px ${-originY * scaleY}px`,
+        backgroundRepeat: 'no-repeat',
+      }
+    : {
+        backgroundImage: `url(${scene.image_path})`,
+        backgroundSize: '100% 100%',
+        backgroundRepeat: 'no-repeat',
+      }
 
   const selectedToken = useMemo(
     () => tokens.find((t) => t.id === selectedTokenId) ?? null,
@@ -215,15 +249,21 @@ export default function Map({
 
   return (
     <div ref={containerRef} className="relative inline-block bg-black/30 rounded-xl p-2 border border-gray-800">
+      {/* Hidden img to detect natural dimensions for background alignment */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={scene.image_path}
+        alt=""
+        aria-hidden
+        onLoad={(e) => {
+          const el = e.currentTarget
+          setImgNatural({ w: el.naturalWidth, h: el.naturalHeight })
+        }}
+        style={{ display: 'none' }}
+      />
       <div
         className="relative select-none rounded-lg overflow-hidden"
-        style={{
-          width,
-          height,
-          backgroundImage: `url(${scene.image_path})`,
-          backgroundSize: '100% 100%',
-          backgroundRepeat: 'no-repeat',
-        }}
+        style={{ width, height, ...bgStyle }}
         onMouseLeave={() => setHoverCell(null)}
       >
         <svg

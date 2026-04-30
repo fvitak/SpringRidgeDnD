@@ -93,7 +93,7 @@ export async function GET(
   // 4. Hydrate the active scene
   const { data: scene } = await supabase
     .from('scenes')
-    .select('id, name, image_path, grid_cols, grid_rows, cell_px, walkable, regions, exits')
+    .select('id, name, image_path, grid_cols, grid_rows, cell_px, cell_w_px, origin_x_px, origin_y_px, walkable, regions, exits')
     .eq('id', currentSceneId)
     .maybeSingle()
 
