@@ -1595,7 +1595,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                     )}
                   </div>
                   <button
-                    onClick={handleAskDM}
+                    onClick={() => handleAskDM()}
                     disabled={isBusy || isAskingDM}
                     className="text-xs text-gray-500 hover:text-purple-400 transition-colors disabled:opacity-40"
                   >
