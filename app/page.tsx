@@ -330,18 +330,17 @@ function PartySidebar({
 
       {/* NPCs in scene */}
       {!combatState?.active && (() => {
-        const discoveredHostile = mapTokens.filter((t) => t.is_friendly === false && t.discovered !== false)
-        const hasNpcs = npcs.some((npc) => {
-          const token = mapTokens.find((t) => t.name === npc.name)
-          return token ? token.discovered !== false : false
-        }) || discoveredHostile.length > 0
-        if (!hasNpcs) return null
+        const allHostile = mapTokens.filter((t) => t.is_friendly === false)
+        if (allHostile.length === 0 && npcs.length === 0) return null
+
+        const isDiscovered = (t: MapToken) => t.discovered !== false
 
         // Assign A, B, C... to discovered hostile tokens sorted by id for stability.
         // Map.tsx uses the same ordering so letters match between sidebar and map tokens.
         const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
         const letterMap: Record<string, string> = {}
-        discoveredHostile
+        allHostile
+          .filter(isDiscovered)
           .slice()
           .sort((a, b) => a.id.localeCompare(b.id))
           .forEach((t, i) => { letterMap[t.id] = alphabet[i] ?? String(i + 1) })
@@ -357,12 +356,17 @@ function PartySidebar({
           )
         }
 
+        // Separate discovered from undiscovered for display.
+        const discoveredNpcNames = new Set(
+          npcs.filter((npc) => { const t = mapTokens.find((tk) => tk.name === npc.name); return t ? isDiscovered(t) : false }).map((n) => n.name)
+        )
+
         return (
           <div className="border-t border-gray-800 pt-3 mt-1">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 px-1 mb-2">In the Scene</h2>
-            {/* NPCs from scene data */}
+            {/* Discovered NPCs from scene data — full card with description */}
             {npcs
-              .filter((npc) => { const t = mapTokens.find((tk) => tk.name === npc.name); return t ? t.discovered !== false : false })
+              .filter((npc) => discoveredNpcNames.has(npc.name))
               .map((npc) => {
                 const npcToken = mapTokens.find((t) => t.name === npc.name)!
                 const letter = letterMap[npcToken.id]
@@ -382,9 +386,9 @@ function PartySidebar({
                   </div>
                 )
               })}
-            {/* Hostile tokens not in npcs list */}
-            {mapTokens
-              .filter((t) => t.is_friendly === false && t.discovered !== false && !npcs.some((n) => n.name === t.name))
+            {/* Discovered hostile tokens not in npcs list */}
+            {allHostile
+              .filter((t) => isDiscovered(t) && !npcs.some((n) => n.name === t.name))
               .map((t) => {
                 const letter = letterMap[t.id]
                 return (
@@ -397,6 +401,18 @@ function PartySidebar({
                   </div>
                 )
               })}
+            {/* Undiscovered hostile tokens — DM pre-position only, no name/description shown */}
+            {allHostile.filter((t) => !isDiscovered(t)).length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-800/60">
+                <p className="text-xs text-gray-600 px-1 mb-2 italic">Pre-position (not yet revealed)</p>
+                {allHostile.filter((t) => !isDiscovered(t)).map((t) => (
+                  <div key={t.id} className="mb-2 bg-gray-900/50 rounded-lg border border-gray-800 px-2 py-2 opacity-60">
+                    <p className="text-xs text-gray-500 mb-1">{t.name}</p>
+                    <PlaceButtons token={t} />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )
       })()}
