@@ -340,11 +340,11 @@ function PartySidebar({
         // Assign A, B, C... to discovered hostile tokens sorted by id for stability.
         // Map.tsx uses the same ordering so letters match between sidebar and map tokens.
         const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        const letterMap = new Map<string, string>()
+        const letterMap: Record<string, string> = {}
         discoveredHostile
           .slice()
           .sort((a, b) => a.id.localeCompare(b.id))
-          .forEach((t, i) => letterMap.set(t.id, alphabet[i] ?? String(i + 1)))
+          .forEach((t, i) => { letterMap[t.id] = alphabet[i] ?? String(i + 1) })
 
         const PlaceButtons = ({ token }: { token: MapToken }) => {
           const placing = placingTokenId === token.id
@@ -365,7 +365,7 @@ function PartySidebar({
               .filter((npc) => { const t = mapTokens.find((tk) => tk.name === npc.name); return t ? t.discovered !== false : false })
               .map((npc) => {
                 const npcToken = mapTokens.find((t) => t.name === npc.name)!
-                const letter = letterMap.get(npcToken.id)
+                const letter = letterMap[npcToken.id]
                 return (
                   <div key={npc.name} className="mb-2 bg-gray-800/50 rounded-lg border border-gray-700">
                     <button onClick={() => onInsertName(npc.name)} className="w-full text-left px-2 pt-2 pb-1 rounded-t-lg hover:bg-gray-800 transition-colors group" title={`Insert "${npc.name}" at cursor`}>
@@ -386,7 +386,7 @@ function PartySidebar({
             {mapTokens
               .filter((t) => t.is_friendly === false && t.discovered !== false && !npcs.some((n) => n.name === t.name))
               .map((t) => {
-                const letter = letterMap.get(t.id)
+                const letter = letterMap[t.id]
                 return (
                   <div key={t.id} className="mb-2 bg-gray-800/50 rounded-lg border border-gray-700 px-2 py-2">
                     <div className="flex items-center gap-2 mb-1">
