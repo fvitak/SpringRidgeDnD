@@ -125,11 +125,21 @@ function PartySidebar({
   onInsertName,
   combatState,
   onShowQR,
+  mapTokens,
+  placingTokenId,
+  onStartPlace,
+  onStopPlace,
+  onOpenDmChat,
 }: {
   sessionId: string
   onInsertName: (name: string) => void
   combatState: CombatState | null
   onShowQR: (member: PartyMember) => void
+  mapTokens: MapToken[]
+  placingTokenId: string | null
+  onStartPlace: (tokenId: string) => void
+  onStopPlace: () => void
+  onOpenDmChat: () => void
 }) {
   const [party, setParty] = useState<PartyMember[]>([])
   const [npcs, setNpcs] = useState<SceneNPC[]>([])
@@ -174,6 +184,8 @@ function PartySidebar({
       {party.map((member) => {
         const intox = getIntoxLevel(member.drinks_consumed, member.tolerance_threshold)
         const hpPct = member.max_hp > 0 ? (member.hp / member.max_hp) * 100 : 0
+        const token = mapTokens.find((t) => (t as MapToken & { character_id?: string }).character_id === member.id)
+        const isPlacing = token ? placingTokenId === token.id : false
 
         return (
           <div
@@ -235,37 +247,134 @@ function PartySidebar({
                 ))}
               </div>
             )}
+
+            {/* Token placement controls */}
+            {token && (
+              <div className="flex gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
+                {isPlacing ? (
+                  <button
+                    onClick={onStopPlace}
+                    className="flex-1 text-xs py-1 rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors font-medium"
+                  >
+                    Set Position
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => onStartPlace(token.id)}
+                    className="flex-1 text-xs py-1 rounded bg-gray-700 hover:bg-purple-700 text-gray-300 hover:text-white transition-colors"
+                  >
+                    Adjust
+                  </button>
+                )}
+              </div>
+            )}
+            {!token && (
+              <div className="flex gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
+                <span className="text-xs text-gray-600 italic">Not on map</span>
+              </div>
+            )}
           </div>
         )
       })}
-      {/* NPCs in scene — hidden during active combat */}
-      {!combatState?.active && npcs.length > 0 && (
+
+      {/* Map controls — Set Position exits placement mode globally */}
+      {placingTokenId && (
+        <button
+          onClick={onStopPlace}
+          className="w-full text-xs py-2 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-semibold transition-colors"
+        >
+          ✓ Set Position
+        </button>
+      )}
+
+      {/* NPCs in scene */}
+      {!combatState?.active && (npcs.length > 0 || mapTokens.some((t) => (t as MapToken & { is_friendly?: boolean }).is_friendly === false)) && (
         <>
           <div className="border-t border-gray-800 pt-3 mt-1">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 px-1 mb-2">
               In the Scene
             </h2>
-            {npcs.map((npc) => (
-              <button
-                key={npc.name}
-                onClick={() => onInsertName(npc.name)}
-                className="w-full text-left px-2 py-2 rounded-lg hover:bg-gray-800 transition-colors group mb-1"
-                title={`Insert "${npc.name}" at cursor`}
-              >
-                <span className="text-sm font-medium text-gray-200 group-hover:text-purple-400 transition-colors block leading-tight">
-                  {npc.name}
-                </span>
-                {npc.description && (
-                  <span className="text-xs text-gray-500 block leading-tight">{npc.description}</span>
-                )}
-                {npc.location && (
-                  <span className="text-xs text-gray-600 block leading-tight italic">{npc.location}</span>
-                )}
-              </button>
-            ))}
+            {npcs.map((npc) => {
+              const npcToken = mapTokens.find((t) => t.name === npc.name)
+              const isNpcPlacing = npcToken ? placingTokenId === npcToken.id : false
+              return (
+                <div key={npc.name} className="mb-1">
+                  <button
+                    onClick={() => onInsertName(npc.name)}
+                    className="w-full text-left px-2 pt-2 pb-1 rounded-t-lg hover:bg-gray-800 transition-colors group"
+                    title={`Insert "${npc.name}" at cursor`}
+                  >
+                    <span className="text-sm font-medium text-gray-200 group-hover:text-purple-400 transition-colors block leading-tight">
+                      {npc.name}
+                    </span>
+                    {npc.description && (
+                      <span className="text-xs text-gray-500 block leading-tight">{npc.description}</span>
+                    )}
+                    {npc.location && (
+                      <span className="text-xs text-gray-600 block leading-tight italic">{npc.location}</span>
+                    )}
+                  </button>
+                  {npcToken && (
+                    <div className="px-2 pb-2">
+                      {isNpcPlacing ? (
+                        <button
+                          onClick={onStopPlace}
+                          className="w-full text-xs py-1 rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors font-medium"
+                        >
+                          Set Position
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onStartPlace(npcToken.id)}
+                          className="w-full text-xs py-1 rounded bg-gray-700 hover:bg-orange-700 text-gray-300 hover:text-white transition-colors"
+                        >
+                          Adjust NPC
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {/* NPC tokens on map that aren't in the npcs list */}
+            {mapTokens
+              .filter((t) => (t as MapToken & { is_friendly?: boolean }).is_friendly === false && !npcs.some((n) => n.name === t.name))
+              .map((t) => {
+                const isNpcPlacing = placingTokenId === t.id
+                return (
+                  <div key={t.id} className="mb-1 px-2 pb-2">
+                    <p className="text-sm font-medium text-gray-300 leading-tight mb-1">{t.name}</p>
+                    {isNpcPlacing ? (
+                      <button
+                        onClick={onStopPlace}
+                        className="w-full text-xs py-1 rounded bg-blue-700 hover:bg-blue-600 text-white transition-colors font-medium"
+                      >
+                        Set Position
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onStartPlace(t.id)}
+                        className="w-full text-xs py-1 rounded bg-gray-700 hover:bg-orange-700 text-gray-300 hover:text-white transition-colors"
+                      >
+                        Adjust NPC
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
           </div>
         </>
       )}
+
+      {/* Private DM Chat */}
+      <div className="border-t border-gray-800 pt-3 mt-auto">
+        <button
+          onClick={onOpenDmChat}
+          className="w-full text-xs py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-purple-600 text-gray-400 hover:text-purple-300 transition-colors"
+        >
+          🔒 Private DM Chat
+        </button>
+      </div>
     </aside>
   )
 }
@@ -907,6 +1016,116 @@ function HistoryDrawer({ log, onClose }: { log: LogEntry[]; onClose: () => void 
 }
 
 // ---------------------------------------------------------------------------
+// DM Chat Modal
+// ---------------------------------------------------------------------------
+
+interface DMChatMessage {
+  role: 'dm' | 'guide'
+  text: string
+}
+
+function DMChatModal({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
+  const [messages, setMessages] = useState<DMChatMessage[]>([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  async function send() {
+    const text = input.trim()
+    if (!text || loading) return
+    setInput('')
+    setMessages((prev) => [...prev, { role: 'dm', text }])
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/dm-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      })
+      const data = await res.json()
+      setMessages((prev) => [...prev, { role: 'guide', text: data.reply ?? data.error ?? 'No response.' }])
+    } catch {
+      setMessages((prev) => [...prev, { role: 'guide', text: 'Connection error.' }])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-end md:items-center justify-center z-50 p-4" onClick={onClose}>
+      <div
+        className="bg-gray-900 border border-purple-700/60 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col"
+        style={{ maxHeight: '70vh' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 flex-shrink-0">
+          <h2 className="text-sm font-bold text-purple-400 uppercase tracking-widest">🔒 Private DM Chat</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-xl leading-none">✕</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+          {messages.length === 0 && (
+            <p className="text-gray-600 text-xs italic text-center py-4">
+              Talk privately with the AI Guide to coordinate the game.
+            </p>
+          )}
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === 'dm' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`rounded-xl px-3 py-2 text-sm max-w-[85%] leading-relaxed ${
+                  msg.role === 'dm'
+                    ? 'bg-purple-700/50 text-purple-100'
+                    : 'bg-gray-800 text-gray-200 border border-gray-700'
+                }`}
+              >
+                {msg.text}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-gray-500 italic">
+                Guide is thinking…
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        <div className="flex gap-2 px-4 py-3 border-t border-gray-800 flex-shrink-0">
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') send(); if (e.key === 'Escape') onClose() }}
+            placeholder="Ask the Guide privately…"
+            disabled={loading}
+            className="flex-1 bg-gray-800 text-gray-100 placeholder-gray-600 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+          />
+          <button
+            onClick={send}
+            disabled={loading || !input.trim()}
+            className="px-4 py-2 bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Turn Queue Strip
 // ---------------------------------------------------------------------------
 
@@ -993,6 +1212,8 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const [sceneSuggestions, setSceneSuggestions] = useState<string[]>([])
   const [nudgeText, setNudgeText] = useState<string | null>(null)
   const [isAskingDM, setIsAskingDM] = useState(false)
+  const [placingTokenId, setPlacingTokenId] = useState<string | null>(null)
+  const [dmChatOpen, setDmChatOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const prevIsTypingRef = useRef(false)
@@ -1550,12 +1771,24 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                 return tok?.id ?? null
               })()}
               onMoveCommitted={fetchMap}
+              placingTokenId={placingTokenId}
+              onPlaceCommitted={fetchMap}
             />
           </div>
         )}
 
         {/* UX-01: Party status sidebar — hidden on mobile */}
-        <PartySidebar sessionId={sessionId} onInsertName={handleInsertName} combatState={combatState} onShowQR={setQrMember} />
+        <PartySidebar
+          sessionId={sessionId}
+          onInsertName={handleInsertName}
+          combatState={combatState}
+          onShowQR={setQrMember}
+          mapTokens={mapTokens}
+          placingTokenId={placingTokenId}
+          onStartPlace={setPlacingTokenId}
+          onStopPlace={() => setPlacingTokenId(null)}
+          onOpenDmChat={() => setDmChatOpen(true)}
+        />
       </div>
 
       {/* Session history drawer (PER-03) */}
@@ -1566,6 +1799,11 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
       {/* QR re-join modal */}
       {qrMember && (
         <QRPlayerModal member={qrMember} onClose={() => setQrMember(null)} />
+      )}
+
+      {/* Private DM Chat modal */}
+      {dmChatOpen && (
+        <DMChatModal sessionId={sessionId} onClose={() => setDmChatOpen(false)} />
       )}
 
       {/* Turn queue strip */}

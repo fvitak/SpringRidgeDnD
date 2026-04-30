@@ -38,6 +38,10 @@ interface MapProps {
   activeTokenId?: string | null
   /** Refresh callback when a move commits. Caller re-fetches game_state. */
   onMoveCommitted?: () => void
+  /** When set, clicking any cell places this token there (bypasses movement validation). */
+  placingTokenId?: string | null
+  /** Called after a successful place. */
+  onPlaceCommitted?: () => void
 }
 
 // Lower bound so a cramped layout still produces clickable cells.
@@ -51,6 +55,8 @@ export default function Map({
   tokens,
   activeTokenId,
   onMoveCommitted,
+  placingTokenId,
+  onPlaceCommitted,
 }: MapProps) {
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null)
   const [hoverCell, setHoverCell] = useState<{ x: number; y: number } | null>(null)
@@ -147,6 +153,27 @@ export default function Map({
 
   const handleCellClick = useCallback(
     async (x: number, y: number) => {
+      // Placement mode: bypass movement validation, directly set position.
+      if (placingTokenId) {
+        if (committing) return
+        setCommitting(true)
+        try {
+          await fetch(`/api/sessions/${sessionId}/tokens/${placingTokenId}/place`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ x, y }),
+          })
+          setHoverCell(null)
+          onPlaceCommitted?.()
+        } catch {
+          setErrorToast('Place request failed.')
+          setTimeout(() => setErrorToast(null), 3500)
+        } finally {
+          setCommitting(false)
+        }
+        return
+      }
+
       if (!selectedToken) return
       if (committing) return
       setCommitting(true)
@@ -172,7 +199,7 @@ export default function Map({
         setCommitting(false)
       }
     },
-    [selectedToken, sessionId, committing, onMoveCommitted],
+    [placingTokenId, selectedToken, sessionId, committing, onMoveCommitted, onPlaceCommitted],
   )
 
   const handleTokenClick = useCallback(
@@ -275,6 +302,20 @@ export default function Map({
             />
           )}
 
+          {/* Placement mode hover highlight */}
+          {placingTokenId && hoverCell && (
+            <rect
+              x={hoverCell.x * cellSize}
+              y={hoverCell.y * cellSize}
+              width={cellSize}
+              height={cellSize}
+              fill="rgba(59,130,246,0.45)"
+              stroke="rgba(59,130,246,0.9)"
+              strokeWidth={2}
+              pointerEvents="none"
+            />
+          )}
+
           {Array.from({ length: scene.grid_rows }).map((_, y) =>
             Array.from({ length: scene.grid_cols }).map((_, x) => (
               <rect
@@ -284,9 +325,15 @@ export default function Map({
                 width={cellSize}
                 height={cellSize}
                 fill="transparent"
-                style={{ cursor: selectedToken ? 'pointer' : 'default' }}
-                onMouseEnter={() => selectedToken && setHoverCell({ x, y })}
-                onClick={() => selectedToken && handleCellClick(x, y)}
+                style={{ cursor: placingTokenId ? 'crosshair' : selectedToken ? 'pointer' : 'default' }}
+                onMouseEnter={() => {
+                  if (placingTokenId) setHoverCell({ x, y })
+                  else if (selectedToken) setHoverCell({ x, y })
+                }}
+                onClick={() => {
+                  if (placingTokenId) handleCellClick(x, y)
+                  else if (selectedToken) handleCellClick(x, y)
+                }}
               />
             )),
           )}
@@ -311,7 +358,7 @@ export default function Map({
               key={t.id}
               type="button"
               onClick={() => handleTokenClick(t.id)}
-              className={`absolute rounded-full flex items-center justify-center text-white font-bold border-2 transition-all ${isFriendly ? 'cursor-pointer' : 'cursor-default'} ${isSelected ? 'ring-4 ring-purple-400/80 scale-110' : ''} ${isActive && !isSelected ? 'ring-2 ring-yellow-300 animate-pulse' : ''}`}
+              className={`absolute rounded-full flex items-center justify-center text-white font-bold border-2 transition-all ${isFriendly ? 'cursor-pointer' : 'cursor-default'} ${isSelected ? 'ring-4 ring-purple-400/80 scale-110' : ''} ${isActive && !isSelected ? 'ring-2 ring-yellow-300 animate-pulse' : ''} ${t.id === placingTokenId ? 'ring-4 ring-blue-400 animate-pulse' : ''}`}
               style={{
                 left: t.x * cellSize + 2,
                 top: t.y * cellSize + 2,
@@ -331,7 +378,11 @@ export default function Map({
 
       <div className="flex items-center justify-between mt-1 text-xs text-gray-400 px-1">
         <span>{scene.name}</span>
-        {selectedToken ? (
+        {placingTokenId ? (
+          <span className="text-blue-400">
+            Click any cell to place {tokens.find((t) => t.id === placingTokenId)?.name ?? 'token'}
+          </span>
+        ) : selectedToken ? (
           preview && !preview.ok ? (
             <span className="text-red-400">{preview.explanation}</span>
           ) : preview && preview.ok ? (
