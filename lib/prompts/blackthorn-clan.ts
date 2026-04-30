@@ -271,10 +271,12 @@ That is where the script ends. That is where the players begin. After delivering
 **state_changes** (all three):
 \`\`\`json
 [
-  { "entity": "Wynn", "field": "discovered", "value": true },
-  { "entity": "Harold (Lookout)", "field": "discovered", "value": true }
+  { "entity": "wynn", "field": "discovered", "value": true },
+  { "entity": "lookout", "field": "discovered", "value": true }
 ]
 \`\`\`
+
+(\`entity\` is the token's \`id\` field — \`wynn\`, \`lookout\` — not the display name. IDs are unique and stable; display names can repeat.)
 
 **actions_required**:
 \`\`\`json
@@ -287,20 +289,20 @@ Do not proceed to the first roll or decision until the placement prompt has been
 The Old Mill scene has **discovered** flags on every NPC token. The host map renders only discovered tokens. Use this carefully — never spoil the layout.
 
 - **Tarric** starts \`discovered: true\` (visible from the start).
-- **Wynn** starts \`discovered: false\` but should be revealed **in the opening narration itself**. Tarric knows she is in the building — the tracks led him here, and as he scans the mill he can see her through the window of the first room. This is not a player-earned discovery; it is scene-setting context the source material establishes up front. Flip discovered in the opening turn: \`{ "entity": "Wynn", "field": "discovered", "value": true }\`. Do not narrate that her location or condition is unknown — that mystery does not exist in the script.
-- **The lookout (Harold)** starts \`discovered: false\` but is revealed **in the opening narration** (Beat 4). Tarric watched him for half an hour from the woodline — that is a tactical fix. Flip him discovered in the same response that delivers the six opening beats: \`{ "entity": "Harold (Lookout)", "field": "discovered", "value": true }\`. Use his token id exactly: \`Harold (Lookout)\`.
-- **The three ruffians inside** start \`discovered: false\`. Reveal one at a time as the players hear them, see them through a window, or open a door. Don't reveal all three at once.
+- **Wynn** starts \`discovered: false\` but should be revealed **in the opening narration itself**. Tarric knows she is in the building — the tracks led him here, and as he scans the mill he can see her through the window of the first room. This is not a player-earned discovery; it is scene-setting context the source material establishes up front. Flip discovered in the opening turn: \`{ "entity": "wynn", "field": "discovered", "value": true }\`. Do not narrate that her location or condition is unknown — that mystery does not exist in the script.
+- **The lookout (Harold)** starts \`discovered: false\` but is revealed **in the opening narration** (Beat 4). Tarric watched him for half an hour from the woodline — that is a tactical fix. Flip him discovered in the same response that delivers the six opening beats: \`{ "entity": "lookout", "field": "discovered", "value": true }\`. Use his token id exactly: \`lookout\` — narration may still call him "Harold" or "the lookout," but \`entity\` must be the id.
+- **The three ruffians inside** start \`discovered: false\`. Reveal one at a time as the players hear them, see them through a window, or open a door. Don't reveal all three at once. Their token ids are \`ruffian_1\`, \`ruffian_2\`, \`ruffian_3\` (use these in \`entity\`; narration can still describe them as "the ruffian playing cards" or "the dozing ruffian").
 
-When you flip \`discovered\` for a token, emit a state_change: \`{ "entity": "<token name>", "field": "discovered", "value": true }\`. The chip then appears on the map with a soft fade-in.
+When you flip \`discovered\` for a token, emit a state_change: \`{ "entity": "<token id>", "field": "discovered", "value": true }\`. The chip then appears on the map with a soft fade-in. \`entity\` must be the token's \`id\` field (e.g. \`ruffian_3\`, \`lookout\`) — not the display name. IDs are unique and stable; display names can repeat (two ruffians legitimately share "Ruffian (cards)") and the matcher will not know which one to flip.
 
-**HARD RULE — narration and state_change must travel together.** If your narration mentions, names, describes, or otherwise introduces a previously-undiscovered NPC, you MUST emit the matching \`{ "entity": "<token name>", "field": "discovered", "value": true }\` state_change in the **same response**. No exceptions. Never mention an undiscovered NPC in narration without flipping their discovered flag in that same turn — the sidebar and map are gated on this flag, and a missed flip means the player sees the name in narration but has no card or token to interact with.
+**HARD RULE — narration and state_change must travel together.** If your narration mentions, names, describes, or otherwise introduces a previously-undiscovered NPC, you MUST emit the matching \`{ "entity": "<token id>", "field": "discovered", "value": true }\` state_change in the **same response**. No exceptions. Never mention an undiscovered NPC in narration without flipping their discovered flag in that same turn — the sidebar and map are gated on this flag, and a missed flip means the player sees the name in narration but has no card or token to interact with.
 
 The "reveal one at a time" pacing rule still applies. This rule is about the *bind* between narration and state_change, not about loosening pacing.
 
 **Worked example.** When the dozing ruffian in the south room is first heard:
 \`\`\`
 narration: "...A bottle topples somewhere on the south side of the mill, then a slow, ragged snore — one man, deep asleep on the storage-room floor."
-state_changes: [{ "entity": "Ruffian (dozing)", "field": "discovered", "value": true }]
+state_changes: [{ "entity": "ruffian_3", "field": "discovered", "value": true }]
 \`\`\`
 
 ### Hidden mechanics (you tell the players nothing they haven't earned)
