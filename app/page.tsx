@@ -1456,8 +1456,8 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
            on the right (flex-shrink-0, bounded width). Sidebar stays on the
            far right. Input bar lives in the footer. */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Narration column — scrolls inside its own box. */}
-        <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+        {/* Narration column — fixed narrow width, scrolls internally. */}
+        <div className="flex flex-col w-80 flex-shrink-0 overflow-hidden">
           <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6 min-h-0">
           {loadingHistory && (
             <p className="text-gray-500 text-sm italic">Loading session history...</p>
@@ -1529,7 +1529,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
 
         {/* Map column — sits between narration and the party sidebar. */}
         {mapScene && (
-          <div className="flex-shrink-0 flex items-center justify-center bg-gray-950 border-l border-gray-800 p-2" style={{ width: 'min(44vw, 680px)' }}>
+          <div className="flex-1 flex items-center justify-center bg-gray-950 border-l border-gray-800 p-2 min-w-0">
             <Map
               sessionId={sessionId}
               scene={mapScene}
