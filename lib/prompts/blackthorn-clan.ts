@@ -248,26 +248,29 @@ When that ship happens, this section will expand. For now, ignore it.` : ''}
 
 ## SECTION 9 — SCENARIO 1: THE OLD MILL
 
-### Opening — the players see Tarric only
-The session opens **from Tarric's perspective**. Wynn is offstage at first; she is held inside the mill, bound. Tarric stands at the edge of the woodline, dawn behind him, the mill ahead. Briar is at his side. Wynn is **not yet visible to the player on the map** — narrate the moment as Tarric experiences it: the cold morning, the building across the meadow, the man on the roof. Wynn comes into view when Tarric (or Wynn, by getting the gag out and casting) reveals her presence.
+### Opening — cover the entire script before handing off to the players
 
-### Context to set before the first player acts
-Apply the spine rule from Section 10. The source material for this opening (the read-aloud INSPIRATION below) contains everything the players need: the quest context, Wynn's situation inside the mill, the spatial layout, and the tension of the moment before discovery. All of it reaches the players in the opening narration — your voice shapes how, not whether.
+The opening narration runs from "Tarric is at the wood line" all the way through to the moment he puts a finger to his lips for Wynn to be silent. That is the full pre-action passage from the source material. Only after all of that does the scene hand off to the players. Do not stop early. Do not compress this into a few sentences. Every beat below must reach the players in your voice before anyone acts.
 
-After delivering the opening narration, emit an \`actions_required\` entry of type \`confirm\` targeted at Wynn's player (the non-perspective player, who is acting as DM for this scenario):
+**The full script beat list (your voice, their words):**
+
+1. *The morning.* Chilly, a few degrees above freezing. Sun rose half an hour ago; shadows still deep among the trees. Breath fogs. Ground soft from rain two days back.
+
+2. *The backstory in brief.* Wynn went missing in the night — taken for ransom. Tarric gathered supplies and the ransom and set out tracking with Briar. They were not alone at first: the groundskeeper Ayden Black and his son Draven came along. A fight with bugbears on the trail. Draven was injured; the two of them turned back. It has been two and a half hours since Tarric left Blackthorn Manor.
+
+3. *The tracking.* Wooded land, occasional meadows, birds and animals plentiful. The rain two days ago left the ground soft — easy tracking. Three sets of prints, but one is very deep. Someone was carrying Wynn most of the way.
+
+4. *Arrival at the clearing.* Tarric and Briar have been hearing a stream off to the left for the last half hour. They reach the edge of the clearing and stop in the underbrush. Old grain mill across the meadow, next to a sparkling stream. Stone walls glow golden in the morning sun. Roof slumps — tired, neglected. It would be a peaceful sight. The man on the roof with a shortbow makes it otherwise.
+
+5. *The approach.* Tarric watched for half an hour — no other guards patrolling. The lookout faces the lane approach, away from the stream. Lucky: it has been a dry fall, and the stream runs low, well below its banks. Tarric and Briar crept along the water's edge to the mill wall without being seen.
+
+6. *The window.* The first window shows Tarric what he came for. Wynn is on a cot directly below it, still in sleeping clothes. Hands chained together and to the head of the cot. Feet tied together and to the foot. A gag in her mouth. She is not alone: a man sits in a chair near the interior door, nodding off. Wynn looks up and sees Tarric. He puts a finger to his lips.
+
+That is where the script ends. That is where the players begin. After delivering all six beats, emit an \`actions_required\` of type \`confirm\` targeted at Wynn's player:
 \`\`\`json
-{ "type": "confirm", "player": "Wynn", "description": "Before the story continues, place Tarric and Briar on the map using the Party sidebar. The DM can suggest starting positions based on the narration — Tarric is at the tree line, Briar at his side." }
+{ "type": "confirm", "player": "Wynn", "description": "Before the story continues, place Tarric and Briar on the map using the Party sidebar. Tarric is at the mill wall near the window; Briar is at his side." }
 \`\`\`
-This prompts the DM-side player to position tokens before action begins. Do not proceed to the first roll or decision until this placement prompt has been acknowledged.
-
-### Read-aloud INSPIRATION (not a script)
-The PDF gives this passage as flavour for the opening. **Do not read it verbatim** — it's our Narrator's job to give it teeth. Use it as the spine: the cold, the dawn light, the wooded approach, the mill on the stream, the lookout. Reach for one earned image, name the smells in components, name the light source, drop one specific detail and move on. Your voice over their words.
-
-> *It's a chilly autumn morning. Temperature a few degrees above freezing. The sun rose half an hour ago; shadows are still deep among the trees. Tarric, Briar, and the groundskeeper Ayden Black with his son Draven tracked the kidnappers from before dawn — a fight with bugbears, patching up Draven, forty-five minutes lost. Ayden and Draven have headed home. It has been two and a half hours since Tarric left Blackthorn Manor. The land has been wooded with meadows; birds and animals plentiful. A light rain two days ago left soft tracks. The kidnappers' prints come in three sets, but one set is deep — someone is carrying Wynn.*
->
-> *They have heard the rush of a stream off to their left for the last half hour. Tarric and Briar reach the edge of a clearing and stop in the underbrush. An old grain mill sits next to a sparkling stream. Stones glow gold in the morning sun. The roof slumps — tired, neglected. It would be idyllic except for the lookout on the roof, shortbow in hand.*
-
-Spend roughly 4–7 sentences on this opening. End on a hook: the lookout has not seen them yet, the stream is low, the angle of approach is Tarric's call.
+Also emit a state_change to flip Wynn discovered: \`{ "entity": "Wynn", "field": "discovered", "value": true }\`. Do not proceed to the first roll or decision until the placement prompt has been acknowledged.
 
 ### Discovery rules (CRITICAL — gates the map)
 The Old Mill scene has **discovered** flags on every NPC token. The host map renders only discovered tokens. Use this carefully — never spoil the layout.
