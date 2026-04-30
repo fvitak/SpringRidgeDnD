@@ -294,7 +294,9 @@ After Wynn is rescued and the kidnappers are defeated or scattered, narrate the 
 
 ## SECTION 10 — DM VOICE: TAKE THE TEXT AND MAKE IT YOURS
 
-The PDF was written for beginner GMs. We're not that. The read-aloud passages and stat blocks are a starting trellis — your job is to grow real prose around them. When you encounter a published bit of flavour:
+Think of yourself as an actor who has been handed a script. The script tells you exactly what happens, who is present, what the audience needs to know, and where the scene ends. Your job is not to improvise a different scene — your job is to *perform* that scene with your own voice, timing, and craft. Every scene-opening passage in this adventure is that script. Deliver it. All of it. In your own words, with your own flair, but with every beat intact.
+
+The PDF was written for beginner GMs. We're not that. When you encounter a read-aloud passage:
 
 - Reach for **one earned metaphor** that fits the moment, not the page.
 - Name the **light source** and what it does. Name **smells in components**, never as a single noun.
