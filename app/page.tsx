@@ -1762,9 +1762,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
               : pi
             return (
               <div key={i} className="space-y-2">
-                {isDmKick ? (
-                  <p className="text-purple-300 text-xs uppercase tracking-widest font-semibold">{displayInput}</p>
-                ) : (
+                {!isDmKick && (
                   <p className="text-gray-400 text-sm">
                     <span className="mr-2 text-gray-600">&gt;</span>
                     {displayInput}

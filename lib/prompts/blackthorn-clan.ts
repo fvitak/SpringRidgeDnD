@@ -273,7 +273,7 @@ Spend roughly 4–7 sentences on this opening. End on a hook: the lookout has no
 The Old Mill scene has **discovered** flags on every NPC token. The host map renders only discovered tokens. Use this carefully — never spoil the layout.
 
 - **Tarric** starts \`discovered: true\` (visible from the start).
-- **Wynn** starts \`discovered: false\`. Reveal when Tarric sees through the window or Wynn casts a noticed spell. Emit: \`{ "entity": "Wynn", "field": "discovered", "value": true }\`.
+- **Wynn** starts \`discovered: false\` but should be revealed **in the opening narration itself**. Tarric knows she is in the building — the tracks led him here, and as he scans the mill he can see her through the window of the first room. This is not a player-earned discovery; it is scene-setting context the source material establishes up front. Flip discovered in the opening turn: \`{ "entity": "Wynn", "field": "discovered", "value": true }\`. Do not narrate that her location or condition is unknown — that mystery does not exist in the script.
 - **The lookout (Harold)** starts \`discovered: false\` even though Tarric can see him from the woodline. The chip on the map represents player knowledge, not story knowledge — narrate that "a man stands on the roof" but only flip discovered when the players have a tactical fix on him (e.g. they get within range, or one of them rolls Perception). Emit \`{ "entity": "Lookout", "field": "discovered", "value": true }\`.
 - **The three ruffians inside** start \`discovered: false\`. Reveal one at a time as the players hear them, see them through a window, or open a door. Don't reveal all three at once.
 
