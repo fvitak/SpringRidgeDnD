@@ -258,12 +258,19 @@ function PartySidebar({
                   >
                     Set Position
                   </button>
-                ) : (
+                ) : token.placed ? (
                   <button
                     onClick={() => onStartPlace(token.id)}
                     className="flex-1 text-xs py-1 rounded bg-gray-700 hover:bg-purple-700 text-gray-300 hover:text-white transition-colors"
                   >
                     Adjust
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => onStartPlace(token.id)}
+                    className="flex-1 text-xs py-1 rounded bg-amber-700 hover:bg-amber-600 text-amber-100 hover:text-white transition-colors font-medium"
+                  >
+                    Place
                   </button>
                 )}
               </div>
@@ -288,13 +295,25 @@ function PartySidebar({
       )}
 
       {/* NPCs in scene */}
-      {!combatState?.active && (npcs.length > 0 || mapTokens.some((t) => (t as MapToken & { is_friendly?: boolean }).is_friendly === false)) && (
+      {!combatState?.active && (
+        npcs.some((npc) => {
+          const token = mapTokens.find((t) => t.name === npc.name)
+          return token ? token.discovered !== false : false
+        }) ||
+        mapTokens.some((t) => t.is_friendly === false && t.discovered !== false)
+      ) && (
         <>
           <div className="border-t border-gray-800 pt-3 mt-1">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-500 px-1 mb-2">
               In the Scene
             </h2>
-            {npcs.map((npc) => {
+            {npcs
+              .filter((npc) => {
+                const token = mapTokens.find((t) => t.name === npc.name)
+                if (token) return token.discovered !== false
+                return false
+              })
+              .map((npc) => {
               const npcToken = mapTokens.find((t) => t.name === npc.name)
               const isNpcPlacing = npcToken ? placingTokenId === npcToken.id : false
               return (
@@ -323,12 +342,19 @@ function PartySidebar({
                         >
                           Set Position
                         </button>
-                      ) : (
+                      ) : npcToken.placed ? (
                         <button
                           onClick={() => onStartPlace(npcToken.id)}
                           className="w-full text-xs py-1 rounded bg-gray-700 hover:bg-orange-700 text-gray-300 hover:text-white transition-colors"
                         >
                           Adjust NPC
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onStartPlace(npcToken.id)}
+                          className="w-full text-xs py-1 rounded bg-amber-700 hover:bg-amber-600 text-amber-100 hover:text-white transition-colors font-medium"
+                        >
+                          Place NPC
                         </button>
                       )}
                     </div>
@@ -338,7 +364,7 @@ function PartySidebar({
             })}
             {/* NPC tokens on map that aren't in the npcs list */}
             {mapTokens
-              .filter((t) => (t as MapToken & { is_friendly?: boolean }).is_friendly === false && !npcs.some((n) => n.name === t.name))
+              .filter((t) => t.is_friendly === false && t.discovered !== false && !npcs.some((n) => n.name === t.name))
               .map((t) => {
                 const isNpcPlacing = placingTokenId === t.id
                 return (
@@ -351,12 +377,19 @@ function PartySidebar({
                       >
                         Set Position
                       </button>
-                    ) : (
+                    ) : t.placed ? (
                       <button
                         onClick={() => onStartPlace(t.id)}
                         className="w-full text-xs py-1 rounded bg-gray-700 hover:bg-orange-700 text-gray-300 hover:text-white transition-colors"
                       >
                         Adjust NPC
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onStartPlace(t.id)}
+                        className="w-full text-xs py-1 rounded bg-amber-700 hover:bg-amber-600 text-amber-100 hover:text-white transition-colors font-medium"
+                      >
+                        Place NPC
                       </button>
                     )}
                   </div>
@@ -1213,6 +1246,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const [nudgeText, setNudgeText] = useState<string | null>(null)
   const [isAskingDM, setIsAskingDM] = useState(false)
   const [placingTokenId, setPlacingTokenId] = useState<string | null>(null)
+  const [showPlacementBanner, setShowPlacementBanner] = useState(false)
   const [dmChatOpen, setDmChatOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -1328,7 +1362,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
       'wild-sheep-chase':
         '[DM]: Begin the adventure. Set the scene at The Wooly Flagon tavern in Millhaven.',
       'blackthorn-clan':
-        "[DM]: Open Scenario 1 — from Tarric's perspective.",
+        "[DM]: Open Scenario 1 — from Tarric's perspective. Set the scene at the edge of the woodline at dawn. Establish: (1) why Tarric is here — Wynn was taken for ransom, tracked through the woods for 2.5 hours; (2) that Wynn is inside the mill, bound and gagged, in an unknown room; (3) Tarric and Briar are at the tree line, the mill across the meadow, a lookout on the roof; (4) the lookout hasn't spotted them yet. End with an actions_required asking Wynn's player to place Tarric and Briar on the map using the sidebar before the story continues.",
       'random-encounter':
         '[DM]: Combat test mode. Invent a party of 4 adventurers — give them names and classes (Fighter, Rogue, Cleric, Wizard). They are ambushed on a forest road by 3 bandits and a bandit captain. Roll initiative for all enemies. Request initiative rolls from each player character. Begin combat.',
     }
@@ -1555,6 +1589,19 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     setNudgeText(null)
     typewriterRef.current.pendingActions = []
   }, [isTyping, isStreaming, party]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show placement banner after first narration if tokens aren't placed yet.
+  useEffect(() => {
+    if (isTyping || isStreaming) return
+    if (log.length === 0) return
+    // Only show during the first narration (log has exactly 1 entry)
+    if (log.length !== 1) {
+      setShowPlacementBanner(false)
+      return
+    }
+    const hasUnplaced = mapTokens.some((t) => t.is_friendly !== false && !t.placed)
+    setShowPlacementBanner(hasUnplaced)
+  }, [isTyping, isStreaming, log.length, mapTokens])
 
   function handlePlayerSubmit() {
     if (!input.trim() || isStreaming || isTyping) return
@@ -1885,6 +1932,23 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                       {s}
                     </button>
                   ))}
+                </div>
+              )}
+
+              {/* Placement banner — shown after opening narration if party isn't placed */}
+              {showPlacementBanner && (
+                <div className="flex items-start gap-3 px-3 py-2.5 bg-amber-900/30 border border-amber-700/60 rounded-lg">
+                  <span className="text-lg leading-none mt-0.5">📍</span>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Place characters on the map</p>
+                    <p className="text-sm text-gray-300 mt-0.5">Use the <span className="text-amber-300 font-medium">Place</span> buttons in the Party sidebar to set starting positions before the story continues.</p>
+                  </div>
+                  <button
+                    onClick={() => setShowPlacementBanner(false)}
+                    className="text-gray-500 hover:text-gray-300 text-sm leading-none flex-shrink-0 mt-0.5"
+                  >
+                    ✕
+                  </button>
                 </div>
               )}
 

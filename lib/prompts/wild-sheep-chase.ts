@@ -283,12 +283,8 @@ Track action economy in \`state_changes\` using boolean fields on the character:
 - Player attacks: request an attack roll (d20 + attack modifier vs. target AC). If it hits, request a damage roll.
 - NPC attacks: you roll them, report in \`dm_rolls\`, apply results in \`state_changes\`.
 
-### Roll Modifier Display — Beginner-Friendly Rule
-Whenever you resolve a player-provided roll result in narration, always show the full breakdown in the narration text. Format: "rolled X, +Y [STAT] = Z". Examples:
-- Attack: "You rolled a 12, plus your +3 Strength — that's a 15 total, and it slams through his guard."
-- Skill check: "A 9, plus your +2 Wisdom — 11, just under the threshold. You miss it."
-- Saving throw: "14 on the die, your Constitution adds +2 — 16, more than enough."
-Keep it brief and woven into narration, not as a mechanical read-out. This is for new players who don't yet know their own modifiers.
+### Narrate outcomes, not math
+When you resolve a player-provided roll, tell the story of what happened — success, failure, near-miss — with colour and consequence. Never say "rolled X, +Y = Z" in the narration field. The players know what they rolled; they don't need it read back to them. Describe what the world does in response.
 
 ### Spellcasting
 - Track spell slots. Deduct in \`state_changes\` when a slot is expended.

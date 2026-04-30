@@ -156,7 +156,7 @@ export default function Map({
   // Hover preview: validate the move and produce path/legal cells.
   const preview = useMemo(() => {
     if (!selectedToken || !hoverCell) return null
-    const visibleTokens = tokens.filter((t) => (t as MapToken & { discovered?: boolean }).discovered !== false)
+    const visibleTokens = tokens.filter((t) => t.discovered !== false)
     return validateMove({
       mask: scene.walkable,
       tokens: visibleTokens,
@@ -169,7 +169,7 @@ export default function Map({
   const legalCells = useMemo(() => {
     if (!selectedToken) return new Set<string>()
     const out = new Set<string>()
-    const visibleTokens = tokens.filter((t) => (t as MapToken & { discovered?: boolean }).discovered !== false)
+    const visibleTokens = tokens.filter((t) => t.discovered !== false)
     for (let y = 0; y < scene.grid_rows; y++) {
       for (let x = 0; x < scene.grid_cols; x++) {
         if (x === selectedToken.x && y === selectedToken.y) continue
@@ -379,7 +379,7 @@ export default function Map({
           )}
         </svg>
 
-        {tokens.filter((t) => (t as MapToken & { discovered?: boolean }).discovered !== false).map((t) => {
+        {tokens.filter((t) => t.discovered !== false).map((t) => {
           const isSelected = t.id === selectedTokenId
           const isActive = t.id === activeTokenId
           const isFriendly = t.is_friendly !== false

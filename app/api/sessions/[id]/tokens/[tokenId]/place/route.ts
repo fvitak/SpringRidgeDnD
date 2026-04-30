@@ -33,7 +33,7 @@ export async function POST(
     return Response.json({ error: 'Token not found' }, { status: 404 })
   }
 
-  const updated = tokens.map((t, i) => i === idx ? { ...t, x, y } : t)
+  const updated = tokens.map((t, i) => i === idx ? { ...t, x, y, placed: true } : t)
   await upsertGameState(sessionId, { tokens: updated })
 
   return Response.json({ ok: true, token: updated[idx] })

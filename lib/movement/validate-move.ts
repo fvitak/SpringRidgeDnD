@@ -13,6 +13,8 @@ export interface MapToken {
   y: number
   is_friendly?: boolean
   size?: number
+  discovered?: boolean
+  placed?: boolean
 }
 
 export interface CharacterMoveState {
