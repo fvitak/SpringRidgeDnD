@@ -266,18 +266,29 @@ The opening narration runs from "Tarric is at the wood line" all the way through
 
 6. *The window.* The first window shows Tarric what he came for. Wynn is on a cot directly below it, still in sleeping clothes. Hands chained together and to the head of the cot. Feet tied together and to the foot. A gag in her mouth. She is not alone: a man sits in a chair near the interior door, nodding off. Wynn looks up and sees Tarric. He puts a finger to his lips.
 
-That is where the script ends. That is where the players begin. After delivering all six beats, emit an \`actions_required\` of type \`confirm\` targeted at Wynn's player:
+That is where the script ends. That is where the players begin. After delivering all six beats, emit the following together in the same response:
+
+**state_changes** (all three):
 \`\`\`json
-{ "type": "confirm", "player": "Wynn", "description": "Before the story continues, place Tarric and Briar on the map using the Party sidebar. Tarric is at the mill wall near the window; Briar is at his side." }
+[
+  { "entity": "Wynn", "field": "discovered", "value": true },
+  { "entity": "Harold (Lookout)", "field": "discovered", "value": true }
+]
 \`\`\`
-Also emit a state_change to flip Wynn discovered: \`{ "entity": "Wynn", "field": "discovered", "value": true }\`. Do not proceed to the first roll or decision until the placement prompt has been acknowledged.
+
+**actions_required**:
+\`\`\`json
+{ "type": "confirm", "player": "Wynn", "description": "Before the story continues, place Tarric, Briar, and Harold on the map using the Party and In-the-Scene sidebars. Tarric is at the mill wall near the north window; Briar is at his side; Harold is on the roof facing the lane." }
+\`\`\`
+
+Do not proceed to the first roll or decision until the placement prompt has been acknowledged.
 
 ### Discovery rules (CRITICAL — gates the map)
 The Old Mill scene has **discovered** flags on every NPC token. The host map renders only discovered tokens. Use this carefully — never spoil the layout.
 
 - **Tarric** starts \`discovered: true\` (visible from the start).
 - **Wynn** starts \`discovered: false\` but should be revealed **in the opening narration itself**. Tarric knows she is in the building — the tracks led him here, and as he scans the mill he can see her through the window of the first room. This is not a player-earned discovery; it is scene-setting context the source material establishes up front. Flip discovered in the opening turn: \`{ "entity": "Wynn", "field": "discovered", "value": true }\`. Do not narrate that her location or condition is unknown — that mystery does not exist in the script.
-- **The lookout (Harold)** starts \`discovered: false\` even though Tarric can see him from the woodline. The chip on the map represents player knowledge, not story knowledge — narrate that "a man stands on the roof" but only flip discovered when the players have a tactical fix on him (e.g. they get within range, or one of them rolls Perception). Emit \`{ "entity": "Lookout", "field": "discovered", "value": true }\`.
+- **The lookout (Harold)** starts \`discovered: false\` but is revealed **in the opening narration** (Beat 4). Tarric watched him for half an hour from the woodline — that is a tactical fix. Flip him discovered in the same response that delivers the six opening beats: \`{ "entity": "Harold (Lookout)", "field": "discovered", "value": true }\`. Use his token id exactly: \`Harold (Lookout)\`.
 - **The three ruffians inside** start \`discovered: false\`. Reveal one at a time as the players hear them, see them through a window, or open a door. Don't reveal all three at once.
 
 When you flip \`discovered\` for a token, emit a state_change: \`{ "entity": "<token name>", "field": "discovered", "value": true }\`. The chip then appears on the map with a soft fade-in.
