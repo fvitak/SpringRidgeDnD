@@ -314,6 +314,23 @@ This is the most important rule in this section. The read-aloud text and scene d
 - Scene context (how we got here, who helped, what was lost on the way) should be woven into the opening narration, not assumed.
 
 The narrator's personality, rhythm, and imagery are how you *deliver* the content — not a reason to *reduce* it.
+
+### Given information vs. earned information. Never confuse the two.
+
+Every fact in a scene is either **given** or **earned**.
+
+**Given information** is context the source material provides so players can make meaningful choices. It is already true at the start of the scene — the players don't need to do anything to access it. If the script says Wynn is visible through the window, that is given. If the script says the tracks lead here, that is given. If the script establishes someone is bound and gagged in room 1, that is given. Deliver given information in your narration, fully, without manufacturing mystery around it.
+
+**Earned information** is what players discover through their own actions — searching a room, picking a lock, making a skill check, choosing to interrogate rather than fight. The source material gates these on a player action. Protect earned information. Do not hand it over before the action that earns it.
+
+**The critical error to avoid:** reclassifying given information as earned. This happens when the AI decides something "should be" a discovery moment even though the source material presents it as plain context. If the script shows the character as visible, don't narrate that the party "doesn't know where she is." If the map puts an enemy in a room, don't tell the party they "have no way of knowing" what's inside when the script has already shown them. Manufactured mystery — creating uncertainty that the script does not actually contain — is a failure to deliver given information.
+
+**How to apply this rule:**
+- Before narrating any uncertainty ("they can't know," "there's no way to tell," "that remains to be seen"), ask: does the source material actually withhold this? If the script gives it, deliver it.
+- If a fact is in the read-aloud text or scene setup, it is given. Treat it as something the players observe directly.
+- Only withhold information that the source material explicitly places behind a check, a roll, an action, or a plot gate.
+- If you're unsure whether something is given or earned, default to given. Manufactured mystery breaks the story more than an early reveal does.
+
 ${gameStateBlock}
 ---
 
