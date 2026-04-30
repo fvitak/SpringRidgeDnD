@@ -1785,10 +1785,12 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
 
           {isStreaming && (
             <div className="space-y-2">
-              <p className="text-gray-400 text-sm">
-                <span className="mr-2 text-gray-600">&gt;</span>
-                {currentInput}
-              </p>
+              {!currentInput.startsWith('[DM]:') && (
+                <p className="text-gray-400 text-sm">
+                  <span className="mr-2 text-gray-600">&gt;</span>
+                  {currentInput}
+                </p>
+              )}
               <div className="flex items-center gap-1 text-purple-500 text-sm italic">
                 <span>The Guide is thinking...</span>
                 <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
