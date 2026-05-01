@@ -119,6 +119,46 @@ open an ADR.
 6. **Last 6 entries.** `getEventLog` returns the last 6 turns for Claude
    context. Changing this number affects both cost and narrative coherence —
    touch with care and open an ADR.
+7. **Romance intake gate races the rating-dial fetch.** The mobile sheet's
+   `intakeStatus` fetch (`/api/characters/[id]/romance/status`) is gated on
+   `sessionInfo?.date_night_mode`, which itself is fetched in a separate
+   effect that polls every 5 seconds. On the very first paint after a join,
+   `sessionInfo` is `null`, so the intake gate decision is "don't show
+   intake yet" — this is intentional (we'd rather flash the sheet briefly
+   than show intake on a non-Date-Night session by accident). If you ever
+   change the order or merge those fetches, re-confirm that a WSC player
+   never sees a Romance card on first paint.
+8. **Adventure JSON underscore-prefixed annotations are silently stripped.**
+   `parseSceneContext` / `parseManifest` use plain `z.object(...)`, which
+   strips unknown keys on parse. Author-only notes like `_part_1_todo` and
+   `_npcs_note` live in the source JSON for humans but never appear in the
+   parsed runtime object — meaning `lib/prompts/module-runner.ts` never
+   sees them, and the validator never reports on them. This is desirable
+   (the AI shouldn't see authoring TODOs), but it means you can't rely on
+   these fields for any runtime behaviour. Do not add `.passthrough()` to
+   "fix" this. If a field needs to round-trip, promote it to a real schema
+   field.
+9. **NPC pool resolution is two-tier.** `location.npcs_present[]` ids
+   resolve against `scene.npcs[]` first, then `manifest.shared_npcs[]`.
+   Cross-scene NPCs (e.g. Harold the Lookout in Blackthorn Parts 1+2) live
+   in the manifest pool so a single edit propagates everywhere. If you add
+   an NPC to a per-scene `npcs[]` that already exists in the manifest pool
+   under the same id, the schema accepts both — but the per-scene block
+   wins at runtime read order in any consumer that doesn't merge the two.
+   Pick one home per NPC.
+10. **Two DM routes have separate prompt caches; mid-flight pivots are
+    undefined.** `/api/dm-action` (legacy WSC) caches the full WSC system
+    prompt as a single `ephemeral` block. `/api/dm-action-v2`
+    (module-runner) caches a stable header and concatenates a per-turn
+    scene-context block with NO `cache_control`. The host UI route-switches
+    based on `session.module_id` (NULL → legacy, set → v2). If a session
+    ever toggles `module_id` mid-flight (it shouldn't — `module_id` is
+    write-once at session create), the next turn lands on the other route
+    with a cold cache and a different system-prompt shape. The two routes
+    do not share `cache_control` regions and there is no migration path
+    for in-flight conversion. If you add a UI affordance to "switch
+    modules", build it as "end this session, start a new one with the new
+    module".
 
 ## External references
 
