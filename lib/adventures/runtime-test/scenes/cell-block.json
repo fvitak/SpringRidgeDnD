@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "scene_id": "runtime-test.s1.cell-block",
+  "name": "Cell Block",
+  "ordering": 1,
+  "dm_setup_notes": "Out-of-character DM prep. This scene is the synthetic runtime fixture from PIV-02b. It exists to exercise every layer of the module-runner runtime: read-aloud delivery, plot points, DC checks, NPC stat blocks, romance hook pass-through, and scene-exit transitions. Never read this note aloud. If the players ask about the dozing guard's keys, the keys are on his belt — DC 14 Sleight of Hand to remove without waking him; DC 8 if a distraction is provided first. The rear corridor is the only exit and leads nowhere meaningful in this single-scene module — narrate it as a fade to grey when the players reach it.",
+  "overview": "A single stone cell with a sleeping jailer at the door. The PC must escape — by stealth, by force, or by talk. One DC, one mandatory plot point, one NPC, one romance hook. Tiny by design.",
+  "narration_beats": [
+    {
+      "id": "open",
+      "type": "read_aloud",
+      "trigger": "scene_start",
+      "text": "You wake to the smell of old straw and lamp oil. Stone presses cold against your cheek. A single torch in the corridor outside throws bars of orange across the floor — and across the slumped shoulders of a guard, his head fallen forward over a half-eaten apple. He breathes slow. He does not stir. A ring of iron keys hangs from his belt, dull in the torchlight."
+    },
+    {
+      "id": "scene-state",
+      "type": "scene_description",
+      "trigger": "scene_start",
+      "text": "The cell is roughly fifteen feet across. The bars are iron, set into stone — there is no obvious play in them. The straw is filthy and recent: someone else slept here last night. Your hands are unbound. Your boots are gone, but your belt-pouch was missed in the search. Whatever you brought into this cell is on you."
+    },
+    {
+      "id": "dm-voice",
+      "type": "dm_voice",
+      "trigger": "scene_start",
+      "text": "You have what you have. Pick a direction."
+    }
+  ],
+  "plot_points": [
+    {
+      "id": "escape-cell",
+      "description": "The PC leaves the cell — by stealth, by force, by guile, or by some combination the AI judges sufficient. The scene does not end without this firing.",
+      "mandatory": true,
+      "completed_when": "The PC is on the corridor side of the cell door, with or without the guard's awareness.",
+      "status_field": "plot.escape_cell"
+    }
+  ],
+  "locations": [
+    {
+      "id": "cell",
+      "name": "The Cell",
+      "description": "A 15-foot stone cell. Rusted iron bars on the corridor side; solid stone on the other three. One barred door, locked from the corridor.",
+      "points_of_entry": [
+        {
+          "id": "cell-door",
+          "description": "The barred door — the only way out, locked from the corridor with a sturdy iron lock.",
+          "check": {
+            "id": "pick-the-lock",
+            "skill": "sleight_of_hand",
+            "dc": 14,
+            "context": "Picking the cell door's lock without waking the guard. The lock is plain ironwork; the difficulty is the silence, not the mechanism.",
+            "fail": "On a failure, the lock clicks audibly — the guard stirs (Perception check vs the noise) but does not yet wake.",
+            "success": "On a success, the door swings open without sound.",
+            "override_eligible": true
+          }
+        }
+      ],
+      "dc_checks": [
+        {
+          "id": "spot-the-keys",
+          "skill": "perception",
+          "dc": 10,
+          "context": "Noticing the ring of iron keys on the guard's belt before deciding what to do. Most attentive PCs find this trivially.",
+          "success": "On a success, the AI surfaces the keys as an option in the next response."
+        },
+        {
+          "id": "pickpocket-the-keys",
+          "skill": "sleight_of_hand",
+          "dc": 14,
+          "context": "Lifting the keyring off the guard's belt without waking him. Same DC as picking the lock — the difficulty is keeping him asleep, not the manual dexterity.",
+          "fail": "On a failure, the guard wakes and reaches for the alarm cord above his stool.",
+          "override_eligible": true
+        }
+      ],
+      "items": ["torch (in corridor sconce, just out of reach)", "filthy straw bedding"],
+      "npcs_present": ["dozing-guard"]
+    }
+  ],
+  "npcs": [
+    {
+      "id": "dozing-guard",
+      "name": "Dozing Guard",
+      "role": "Guard (commoner with a club)",
+      "alignment": "lawful neutral",
+      "hp": 11,
+      "max_hp": 11,
+      "ac": 12,
+      "init_bonus": 1,
+      "speed": 30,
+      "ac_proficiency": "padded armour",
+      "weapons": [
+        {
+          "name": "club",
+          "to_hit": 3,
+          "damage": "1d4+1 bludgeoning",
+          "range": "5"
+        }
+      ],
+      "abilities": {
+        "str": 13,
+        "dex": 12,
+        "con": 12,
+        "int": 9,
+        "wis": 11,
+        "cha": 10
+      },
+      "skills": { "perception": 2 },
+      "passive_perception": 9,
+      "tactics": "Asleep at scene start (passive Perception 9 while sleeping per DMG p.255). Wakes on a loud noise or being shaken. If woken, his first action is to grab the alarm cord above his stool — pulling it costs him his action and ends the scene's stealth window. He fights only if cornered; if disarmed or grappled cleanly, he surrenders.",
+      "roleplay_notes": "Younger than you'd expect. Underslept — this is his third double shift this week. He is not cruel; he is bored and tired. Speaks softly when woken; calls for the captain rather than swinging first. If the PC heals him, comforts him, or shares the apple, his disposition flips toward 'won't pursue' even if he has to raise the alarm.",
+      "treasure": "ring of 4 iron keys (the one for this cell is the smallest); half-eaten apple; 3 copper pieces in a pouch."
+    }
+  ],
+  "dc_checks_glossary": [
+    {
+      "id": "search-the-cell",
+      "skill": "investigation",
+      "dc": 12,
+      "context": "Searching the cell for anything missed — a loose stone, a forgotten tool. There's nothing of substance here, but the AI may grant flavour on a success."
+    }
+  ],
+  "encounters": [
+    {
+      "id": "guard-wakes",
+      "trigger": "guard wakes during a stealth attempt",
+      "participants": ["dozing-guard"],
+      "rounds": [
+        { "round": 1, "events": ["Guard reaches for the alarm cord; alarm cord pull is the action."] },
+        { "round": 2, "events": ["Alarm rope rings; reinforcements arrive in 1d4 rounds (off-screen for this test scene — the AI signals scene_transition before they arrive)."] }
+      ]
+    }
+  ],
+  "romance_hooks": [
+    {
+      "id": "comfort-the-guard",
+      "trigger": "PC heals or comforts the dozing guard rather than disabling him",
+      "ap_delta": 2,
+      "narration_cue": "If a partner is present in this synthetic scene, this beat is a candidate for a quiet AP gain — the partner sees their PC choose mercy over expedience. Synthetic test fixture; the v1 schema allows the field to round-trip through the runtime even when supports_date_night is false."
+    }
+  ],
+  "scene_exit_conditions": [
+    {
+      "id": "escape-via-corridor",
+      "description": "The PC clears the cell door and steps into the corridor. The scene ends here — the test module has only one scene, so the runtime should hydrate an empty 'scene over' state on the next turn.",
+      "trigger": "plot.escape_cell === true && PC is past the cell door"
+    }
+  ]
+}
