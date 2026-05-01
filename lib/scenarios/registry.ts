@@ -25,6 +25,14 @@ export interface ScenarioDefinition {
   buildSystemPrompt: (gameState?: unknown) => string
   /** Optional opening kick — used by the host screen to auto-fire the first DM action. */
   openingKick?: string
+  /**
+   * Optional adventure-module identifier under `lib/adventures/<id>/`. When
+   * set, this scenario routes through the `/api/dm-action-v2` module-runner
+   * code path (per DECISIONS.md 2026-04-30 "DM pivot..."). When NULL, the
+   * scenario stays on the legacy `/api/dm-action` route. Written into
+   * `sessions.module_id` at session-create time.
+   */
+  moduleId?: string
 }
 
 export const SCENARIOS: Record<ScenarioId, ScenarioDefinition> = {
@@ -46,6 +54,7 @@ export const SCENARIOS: Record<ScenarioId, ScenarioDefinition> = {
     buildSystemPrompt: buildBlackthornClan,
     openingKick:
       "[DM]: Open Scenario 1 — from Tarric's perspective.",
+    moduleId: 'blackthorn',
   },
   'random-encounter': {
     id: 'random-encounter',

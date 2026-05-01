@@ -21,6 +21,17 @@ interface SessionInfo {
   scenario_id?: string | null
   date_night_mode?: boolean
   current_rating?: string
+  /**
+   * Adventure module id for sessions running on the v2 module-runner code
+   * path (e.g. Blackthorn → "blackthorn"). NULL for legacy WSC /
+   * random-encounter sessions, which stay on `/api/dm-action`.
+   *
+   * The host UI uses this value as the route-switch marker — see the
+   * `dmActionUrl` helper in NarrationScreen. This is the *only* source of
+   * truth on the client; the request body never carries `module_id` (the
+   * v2 route resolves it from `sessions.module_id` server-side).
+   */
+  module_id?: string | null
 }
 
 interface PlayerSlot {
@@ -521,6 +532,7 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
         scenario_id: scenarioId,
         date_night_mode: dateNightMode,
         current_rating: 'PG',
+        module_id: (data.module_id as string | null | undefined) ?? null,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -1314,6 +1326,16 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
 
   const sessionId = session.session_id
 
+  // Route-switch the DM action endpoint based on `session.module_id`.
+  //   NULL → legacy WSC route (`/api/dm-action`).
+  //   set  → module-runner route (`/api/dm-action-v2`).
+  //
+  // The body shape stays the same on both sides (`{ session_id, player_input,
+  // ... }`); the v2 route resolves `module_id` server-side from the session
+  // row, so we deliberately do NOT pass it from the client. Two sources of
+  // truth would drift.
+  const dmActionUrl = session.module_id ? '/api/dm-action-v2' : '/api/dm-action'
+
   function handleInsertName(name: string) {
     const input = inputRef.current
     if (!input) return
@@ -1511,7 +1533,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     setCurrentInput(effectiveInput)
 
     try {
-      const response = await fetch('/api/dm-action', {
+      const response = await fetch(dmActionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1714,7 +1736,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
       : `[${currentPlayer}] aside: Just a nudge — one sentence, narrator voice. What might ${currentPlayer} notice or want to consider right now? Don't decide for them.`
 
     try {
-      const res = await fetch('/api/dm-action', {
+      const res = await fetch(dmActionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
