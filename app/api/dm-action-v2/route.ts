@@ -194,7 +194,11 @@ export async function POST(req: NextRequest) {
     console.error('[v2] Failed to fetch event log:', err)
   }
 
-  const isOpeningTurn = isSceneStartSentinel && eventLogTotal === 0
+  // Opening turn = the player's first interaction with this session,
+  // regardless of whether the auto-fire sentinel triggered or the player
+  // typed something themselves. The empty event log is the load-bearing
+  // signal; the sentinel is just a UX convenience.
+  const isOpeningTurn = eventLogTotal === 0
 
   const historyMessages: Anthropic.MessageParam[] = []
   for (const entry of eventLog) {
@@ -316,6 +320,72 @@ export async function POST(req: NextRequest) {
             }
             return sc
           })
+
+          // Server-side discovery fallback for opening turns.
+          //
+          // The AI is unreliable about emitting `state_changes` while it
+          // focuses on prose — repeated playtests showed beautiful opening
+          // narration with `state_changes: []`, leaving Wynn / lookout /
+          // dozing-guard tokens unflipped and the host map empty. Rather
+          // than keep tightening the prompt rule, the server flips
+          // discovery for everyone the scene wants visible at scene start
+          // and that the AI has just (presumably) introduced.
+          //
+          // Scope is opening-turn-only. Mid-scene reveals (reinforcements
+          // arriving, players opening a new door) still rely on the AI
+          // emitting state_changes per the standing rule. Those are the
+          // narrative beats where pacing matters; opening discovery is
+          // scene-setting and should just happen.
+          if (isOpeningTurn) {
+            const tokens = (game_state as { tokens?: Array<Record<string, unknown>> } | null)
+              ?.tokens ?? []
+            const tokenById = new Map<string, Record<string, unknown>>()
+            for (const t of tokens) {
+              if (typeof t?.id === 'string') tokenById.set(t.id, t)
+            }
+
+            // Collect candidate token ids: PCs + every scene/shared NPC
+            // with a token_id field. (NPCs without token_id can't be
+            // server-flipped — they have no token to point at.)
+            const candidateTokenIds = new Set<string>()
+            const tokensField = (gameState: typeof game_state) =>
+              (gameState as { pc_token_ids?: string[] } | null)?.pc_token_ids
+            const pcIdsFromState = tokensField(game_state)
+            // pc_token_ids isn't on game_state directly; derive from tokens
+            // where kind === 'pc'/'PC' to match buildSceneContextBlock's logic.
+            for (const t of tokens) {
+              const kind = typeof t?.kind === 'string' ? t.kind.toLowerCase() : ''
+              if (kind === 'pc' && typeof t.id === 'string') candidateTokenIds.add(t.id)
+            }
+            void pcIdsFromState
+            for (const npc of [...(scene.npcs ?? []), ...(manifest.shared_npcs ?? [])]) {
+              if (typeof npc.token_id === 'string' && npc.token_id.trim() !== '') {
+                candidateTokenIds.add(npc.token_id)
+              }
+            }
+
+            // Skip ids the AI already flipped this turn.
+            const alreadyFlipped = new Set<string>(
+              translatedStateChanges
+                .filter((sc) => sc.field === 'discovered' && typeof sc.entity === 'string')
+                .map((sc) => sc.entity as string),
+            )
+
+            for (const tokenId of candidateTokenIds) {
+              if (alreadyFlipped.has(tokenId)) continue
+              const tk = tokenById.get(tokenId)
+              if (!tk) continue
+              if (tk.discovered === true) continue
+              translatedStateChanges.push({
+                entity: tokenId,
+                field: 'discovered',
+                value: true,
+              })
+              console.warn(
+                `[v2] Opening-turn auto-discovery: flipping "${tokenId}" (AI did not emit state_change for this token).`,
+              )
+            }
+          }
 
           try {
             await applyStateChanges(session_id, translatedStateChanges, {
