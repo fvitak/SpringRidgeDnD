@@ -120,11 +120,17 @@ export interface PublicRomanceShape {
  * Includes the chosen turn-ons + rolled pet peeves expanded with their
  * effect text. Still does NOT include `current_ap` or
  * `first_impression_total` — both numbers stay hidden by design.
+ *
+ * `first_impression_outcomes` is the trio of player-facing idea-texts
+ * (the `detail` field on each `preconception:<id>` component). The
+ * partner gate strips this entirely — partners must never see what
+ * the self thinks of them at intake.
  */
 export interface SelfRomanceShape extends PublicRomanceShape {
   turn_ons: Array<{ roll: number; name: string; effect_text: string; dice: string }>
   pet_peeves: Array<{ roll: number; name: string; effect_text: string; dice: string }>
   first_impression_components: unknown
+  first_impression_outcomes: string[]
 }
 
 /**
@@ -170,11 +176,48 @@ export function shapeForViewer(
       : []
   const components = row?.first_impression_components ?? []
 
+  // Surface the player-facing idea-text trio for the character sheet.
+  // We accept either the audit shape (post-phase-2: components is an
+  // array of { source, delta, detail }) or the phase-1 payload
+  // (an object with `components: [{ source, idea_text, ... }]`).
+  // In both cases we only emit preconception slots.
+  const outcomes: string[] = []
+  if (Array.isArray(components)) {
+    for (const c of components as Array<Record<string, unknown>>) {
+      const src = typeof c.source === 'string' ? c.source : ''
+      if (!src.startsWith('preconception:')) continue
+      // Audit shape uses `detail`; phase-1 shape uses `idea_text`.
+      const text =
+        typeof c.detail === 'string'
+          ? c.detail
+          : typeof c.idea_text === 'string'
+          ? c.idea_text
+          : ''
+      if (text) outcomes.push(text)
+    }
+  } else if (components && typeof components === 'object') {
+    const inner = (components as { components?: unknown }).components
+    if (Array.isArray(inner)) {
+      for (const c of inner as Array<Record<string, unknown>>) {
+        const src = typeof c.source === 'string' ? c.source : ''
+        if (!src.startsWith('preconception:')) continue
+        const text =
+          typeof c.idea_text === 'string'
+            ? c.idea_text
+            : typeof c.detail === 'string'
+            ? c.detail
+            : ''
+        if (text) outcomes.push(text)
+      }
+    }
+  }
+
   return {
     ...publicShape,
     turn_ons: turnOns,
     pet_peeves: petPeeves,
     first_impression_components: components,
+    first_impression_outcomes: outcomes,
   }
 }
 

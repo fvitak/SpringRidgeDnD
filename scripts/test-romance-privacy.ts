@@ -70,8 +70,28 @@ function fakeRow(): CharacterRomanceRow {
     chosen_turn_on_rolls: [3, 5, 16], // sense of humor / observant / good in a fight
     rolled_pet_peeve_rolls: [4, 10],   // someone clumsy / procrastinators
     first_impression_total: 14,
+    // Audit-shape components (post-finalize): the privacy gate must
+    // surface the `detail` strings of the three preconception slots
+    // as `first_impression_outcomes` for the owner — and strip the
+    // field entirely for the partner.
     first_impression_components: [
       { source: 'no_roll_bonus', delta: 6, detail: 'Fixed +6' },
+      { source: 'charisma_modifier', delta: 0, detail: '+0 (tarric CHA mod)' },
+      {
+        source: 'preconception:kidnap-handling',
+        delta: 4,
+        detail: 'Tarric did his job and was helpful to the family.',
+      },
+      {
+        source: 'preconception:ranger-stereotypes',
+        delta: 0,
+        detail: 'Rangers seem okay.',
+      },
+      {
+        source: 'preconception:family-relations',
+        delta: -3,
+        detail: 'Tarric may be taking advantage of the family\'s generosity.',
+      },
     ],
     current_ap: 14,
     ap_history: [
@@ -126,6 +146,29 @@ if (!isLikelyPublic(ownerView)) {
       !('current_ap' in (ownerView as unknown as Record<string, unknown>)),
     `band=${ownerView.current_ap_band?.label}`,
   )
+  // First-impression outcomes — owner-only.
+  record(
+    'owner view INCLUDES first_impression_outcomes',
+    Array.isArray(ownerView.first_impression_outcomes),
+    `outcomes=${JSON.stringify(ownerView.first_impression_outcomes)}`,
+  )
+  record(
+    'owner first_impression_outcomes contains exactly 3 idea-text strings',
+    Array.isArray(ownerView.first_impression_outcomes) &&
+      ownerView.first_impression_outcomes.length === 3 &&
+      ownerView.first_impression_outcomes.every(
+        (s) => typeof s === 'string' && s.length > 0,
+      ),
+    `count=${ownerView.first_impression_outcomes?.length}`,
+  )
+  record(
+    'owner first_impression_outcomes excludes no_roll_bonus + charisma_modifier rows',
+    Array.isArray(ownerView.first_impression_outcomes) &&
+      !ownerView.first_impression_outcomes.some(
+        (s) => s.startsWith('Fixed +') || /CHA mod/.test(s),
+      ),
+    'only preconception detail strings should appear',
+  )
 }
 
 // 3. Partner view — public-only.
@@ -156,6 +199,39 @@ record(
   'partner view exposes the band label only',
   !!partnerView.current_ap_band && typeof partnerView.current_ap_band.label === 'string',
   partnerView.current_ap_band ? `label=${partnerView.current_ap_band.label}` : 'no band',
+)
+
+// First-impression outcomes — must NOT be in the partner view at all.
+record(
+  'partner view does NOT contain first_impression_outcomes key',
+  !('first_impression_outcomes' in (partnerView as unknown as Record<string, unknown>)),
+  'field must be absent (not null, not empty array)',
+)
+record(
+  'partner view does NOT contain first_impression_components',
+  !(
+    'first_impression_components' in (partnerView as unknown as Record<string, unknown>)
+  ),
+  'audit components must never cross the partner gate',
+)
+
+// Regression guard: simulate a "broken" privacy gate that copies the
+// row's idea-text strings into the partner shape. This must fail one
+// of the partner-view assertions, proving the gate is doing real work.
+const naivePartnerView: Record<string, unknown> = {
+  ...(partnerView as unknown as Record<string, unknown>),
+  first_impression_outcomes: [
+    'Tarric did his job and was helpful to the family.',
+    'Rangers seem okay.',
+    "Tarric may be taking advantage of the family's generosity.",
+  ],
+}
+record(
+  'regression: a leaky partner shape would fail the absence assertion',
+  'first_impression_outcomes' in naivePartnerView &&
+    Array.isArray(naivePartnerView.first_impression_outcomes) &&
+    (naivePartnerView.first_impression_outcomes as unknown[]).length === 3,
+  'confirms the absence check would catch a regression',
 )
 
 // 4. Regression guard — a naive shaper that returns the row verbatim

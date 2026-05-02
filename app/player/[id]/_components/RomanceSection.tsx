@@ -50,6 +50,9 @@ interface SelfRomance {
   turn_ons: TurnOn[]
   pet_peeves: PetPeeve[]
   current_ap_band: ApBand | null
+  /** Player-facing idea texts from the First Impression flow.
+   *  Owner-only: the partner gate strips this entirely. */
+  first_impression_outcomes?: string[]
 }
 
 interface PartnerInfo {
@@ -230,6 +233,29 @@ export default function RomanceSection({ characterId, sessionId }: Props) {
           ))}
         </ul>
       </div>
+
+      {/* Self first-impression outcomes — owner-only roleplay context.
+          No AP delta, no magnitude, no roll number, no band derivation.
+          These are the three thoughts your character had at first sight,
+          shown as a roleplay aid. The partner gate strips the field
+          entirely from the public shape (see _shared.ts). */}
+      {self.first_impression_outcomes && self.first_impression_outcomes.length > 0 && (
+        <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">
+            Your first impressions <span className="normal-case text-gray-600">(private)</span>
+          </p>
+          <ul className="space-y-2">
+            {self.first_impression_outcomes.map((text, i) => (
+              <li
+                key={i}
+                className="rounded-xl bg-gray-950/60 border border-gray-800 px-3 py-2"
+              >
+                <p className="text-xs text-gray-300 leading-relaxed">{text}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   )
 }

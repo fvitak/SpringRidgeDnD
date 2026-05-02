@@ -281,23 +281,233 @@ export function rollPetPeeves(
 // ---------------------------------------------------------------------------
 
 /**
- * Compute First Impression total + audit components.
+ * Phase-1 component shape — what the player sees on screen 2.
  *
- * The PDF gives each PC a fixed "no-roll" bonus, plus the *other* PC's
- * CHA modifier, plus three independent d20 preconception rolls. We accept
- * the d20 rolls from the caller (the player typed them in from a physical
- * d20).
+ * `dice_kind` is the player-rolled die for the chosen preconception:
+ *   - 'd6' for a negative outcome (subtract)
+ *   - 'd10' for a positive outcome (add)
+ *   - null for a neutral outcome (no roll)
  *
- * Per-roll bucket randomization (PIV-07 polish): the PDF maps the d20 to
- * three fixed buckets [1-6] / [7-13] / [14-20] which line up with the
- * table's three branches (negative / neutral / positive). Default mapping
- * is one of six possible permutations; we randomize the
+ * `idea_text` is the table's player-facing one-liner (e.g. "Tarric did
+ * his job and was helpful to the family.").
+ *
+ * `direction` mirrors the table's `ap_modifier.direction`, with
+ * 'neutral' as the discriminator for a null modifier.
+ */
+export interface FirstImpressionComponent {
+  /** Component class. `no_roll_bonus`, `charisma_modifier`, or `preconception:<id>`. */
+  source: string
+  /** The player-facing copy. For preconceptions, the table's `idea_text`. */
+  idea_text: string
+  /** Player-rolled die kind. null for non-preconception rows or neutral outcomes. */
+  dice_kind: 'd6' | 'd10' | null
+  /** Sign convention for the magnitude when finalizing. */
+  direction: 'add' | 'subtract' | 'neutral'
+  /** Slot index 0..N-1 within the preconception list. -1 for non-preconception rows. */
+  slot_index: number
+}
+
+/**
+ * Phase 2 produces the same audit shape as the legacy single-phase call:
+ * a `delta` (signed AP contribution) and a human-readable `detail`.
+ */
+export interface FirstImpressionAuditComponent {
+  source: string
+  delta: number
+  detail: string
+}
+
+/**
+ * PHASE 1 — pick preconception outcomes from the d20 rolls. NO magnitude
+ * dice are rolled here; the player rolls them on screen 2.
+ *
+ * Returns one `FirstImpressionComponent` per preconception (typically 3),
+ * carrying the player-facing `idea_text` and the `dice_kind` the player
+ * needs to roll. Plus the no-roll bonus + CHA modifier rows so phase 2
+ * can finalize with the full audit.
+ *
+ * Per-preconception bucket randomization (PIV-07 polish): the PDF maps
+ * d20 to three fixed buckets [1-6] / [7-13] / [14-20] aligned to the
+ * three outcome classes (negative / neutral / positive). We shuffle the
  * outcome-to-bucket mapping per preconception so the same d20 number
  * across different rolls rarely yields the same outcome. Bucket SIZES
- * stay fixed (6 / 7 / 7) — the PDF's probability split is preserved.
+ * stay fixed (6 / 7 / 7) — the PDF probability split is preserved.
+ */
+export function pickFirstImpressionOutcomes(args: {
+  viewerPcId: string
+  viewedPcId: string
+  table: RomanceTables['first_impressions_table']
+  rolls: number[]
+  charismaMod: number
+  rng?: RomanceRng
+}): {
+  components: FirstImpressionComponent[]
+  no_roll_bonus: number
+  charisma_mod: number
+} {
+  const { viewerPcId, viewedPcId, table, rolls, charismaMod, rng = defaultRng } = args
+
+  const entry: FirstImpressionEntry | undefined = table.find(
+    (e) => e.viewer_pc_id === viewerPcId && e.viewed_pc_id === viewedPcId,
+  )
+  if (!entry) {
+    throw new Error(
+      `pickFirstImpressionOutcomes: no entry for viewer="${viewerPcId}" viewed="${viewedPcId}"`,
+    )
+  }
+
+  const branchesPerPreconception = 3
+  const totalPreconceptions = Math.floor(entry.preconceptions.length / branchesPerPreconception)
+
+  const BUCKETS: Array<[number, number]> = [[1, 6], [7, 13], [14, 20]]
+
+  const components: FirstImpressionComponent[] = []
+
+  for (let i = 0; i < totalPreconceptions; i++) {
+    const d20 = rolls[i]
+    if (typeof d20 !== 'number' || d20 < 1 || d20 > 20) {
+      throw new Error(`pickFirstImpressionOutcomes: rolls[${i}] is not a d20 (got ${d20})`)
+    }
+    const start = i * branchesPerPreconception
+    const branches = entry.preconceptions.slice(start, start + branchesPerPreconception)
+
+    const negative = branches.find((b) => b.ap_modifier?.direction === 'subtract')
+    const neutral = branches.find((b) => b.ap_modifier === null || b.ap_modifier === undefined)
+    const positive = branches.find((b) => b.ap_modifier?.direction === 'add')
+
+    let chosen: (typeof branches)[number]
+    if (!negative || !neutral || !positive) {
+      // Legacy fallback — direct d20_range lookup if the table isn't shaped
+      // as the standard negative/neutral/positive triple.
+      const branch = branches.find((b) => d20 >= b.d20_range[0] && d20 <= b.d20_range[1])
+      if (!branch) {
+        throw new Error(
+          `pickFirstImpressionOutcomes: no branch for preconception ${i} d20=${d20}`,
+        )
+      }
+      chosen = branch
+    } else {
+      const outcomes = [negative, neutral, positive]
+      const permutation = shuffleWithRng([0, 1, 2], rng)
+      const bucketIdx = BUCKETS.findIndex(([lo, hi]) => d20 >= lo && d20 <= hi)
+      if (bucketIdx === -1) {
+        throw new Error(`pickFirstImpressionOutcomes: d20=${d20} out of bucket range`)
+      }
+      chosen = outcomes[permutation[bucketIdx]]
+    }
+
+    let dice_kind: 'd6' | 'd10' | null = null
+    let direction: 'add' | 'subtract' | 'neutral' = 'neutral'
+    if (chosen.ap_modifier) {
+      direction = chosen.ap_modifier.direction
+      // Negative bucket = d6, positive bucket = d10. We accept whatever the
+      // table says for forward compatibility but constrain the player UI
+      // to the d6 / d10 prompt the PDF specifies.
+      const dice = chosen.ap_modifier.dice
+      if (dice === 'd6') dice_kind = 'd6'
+      else if (dice === 'd10') dice_kind = 'd10'
+      else {
+        // Fall back to direction-based inference for any non-d6/d10 die.
+        dice_kind = direction === 'subtract' ? 'd6' : 'd10'
+      }
+    }
+
+    components.push({
+      source: `preconception:${chosen.id}`,
+      idea_text: chosen.idea_text,
+      dice_kind,
+      direction,
+      slot_index: i,
+    })
+  }
+
+  return {
+    components,
+    no_roll_bonus: entry.no_roll_bonus,
+    charisma_mod: charismaMod,
+  }
+}
+
+/**
+ * PHASE 2 — finalize the first impression total given the player's
+ * magnitude rolls. Validates each magnitude against its slot's
+ * `dice_kind`:
+ *   - dice_kind === 'd6'  → magnitude must be an integer 1..6.
+ *   - dice_kind === 'd10' → magnitude must be an integer 1..10.
+ *   - dice_kind === null  → magnitude must be null.
  *
- * `rng` is used for both the per-preconception bucket permutation AND
- * the dice roll on the chosen branch's `ap_modifier`.
+ * Returns the seed AP `total` plus the legacy audit components shape
+ * (signed `delta` + human-readable `detail`) so the existing persistence
+ * path stays unchanged.
+ */
+export function finalizeFirstImpression(args: {
+  components: FirstImpressionComponent[]
+  magnitudeRolls: Array<number | null>
+  charismaMod: number
+  noRollBonus: number
+  viewedPcId?: string
+}): {
+  total: number
+  components_with_magnitude: FirstImpressionAuditComponent[]
+} {
+  const { components, magnitudeRolls, charismaMod, noRollBonus, viewedPcId } = args
+
+  const audit: FirstImpressionAuditComponent[] = []
+  let total = 0
+
+  // No-roll bonus
+  total += noRollBonus
+  audit.push({
+    source: 'no_roll_bonus',
+    delta: noRollBonus,
+    detail: `Fixed +${noRollBonus} (no-roll preconception)`,
+  })
+
+  // CHA modifier of the viewed PC
+  total += charismaMod
+  audit.push({
+    source: 'charisma_modifier',
+    delta: charismaMod,
+    detail: `${charismaMod >= 0 ? '+' : ''}${charismaMod}${
+      viewedPcId ? ` (${viewedPcId} CHA mod)` : ''
+    }`,
+  })
+
+  // Validate + apply each preconception's player-rolled magnitude.
+  for (let i = 0; i < components.length; i++) {
+    const comp = components[i]
+    const mag = magnitudeRolls[i]
+    if (comp.dice_kind === null) {
+      if (mag !== null && mag !== undefined) {
+        throw new Error(
+          `finalizeFirstImpression: slot ${i} is neutral; magnitude must be null (got ${mag})`,
+        )
+      }
+      audit.push({ source: comp.source, delta: 0, detail: comp.idea_text })
+      continue
+    }
+    const max = comp.dice_kind === 'd6' ? 6 : 10
+    if (typeof mag !== 'number' || !Number.isInteger(mag) || mag < 1 || mag > max) {
+      throw new Error(
+        `finalizeFirstImpression: slot ${i} requires an integer 1-${max} for ${comp.dice_kind} (got ${mag})`,
+      )
+    }
+    const delta = comp.direction === 'subtract' ? -mag : mag
+    total += delta
+    audit.push({ source: comp.source, delta, detail: comp.idea_text })
+  }
+
+  return { total, components_with_magnitude: audit }
+}
+
+/**
+ * Compute First Impression total + audit components in one shot.
+ *
+ * @deprecated Prefer `pickFirstImpressionOutcomes` (phase 1) +
+ * `finalizeFirstImpression` (phase 2). The two-phase split lets the
+ * player roll magnitude dice themselves on screen 2; this single-shot
+ * version is retained for the privacy regression test and any
+ * non-interactive callers that still want the legacy server-side roll.
  */
 export function computeFirstImpression(args: {
   viewerPcId: string
@@ -309,110 +519,36 @@ export function computeFirstImpression(args: {
 }): { total: number; components: Array<{ source: string; delta: number; detail: string }> } {
   const { viewerPcId, viewedPcId, table, rolls, charismaMod, rng = defaultRng } = args
 
-  const entry: FirstImpressionEntry | undefined = table.find(
-    (e) => e.viewer_pc_id === viewerPcId && e.viewed_pc_id === viewedPcId,
-  )
-  if (!entry) {
-    throw new Error(
-      `computeFirstImpression: no entry for viewer="${viewerPcId}" viewed="${viewedPcId}"`,
-    )
-  }
-
-  const components: Array<{ source: string; delta: number; detail: string }> = []
-  let total = 0
-
-  // No-roll bonus
-  total += entry.no_roll_bonus
-  components.push({
-    source: 'no_roll_bonus',
-    delta: entry.no_roll_bonus,
-    detail: `Fixed +${entry.no_roll_bonus} (no-roll preconception)`,
+  const phase1 = pickFirstImpressionOutcomes({
+    viewerPcId,
+    viewedPcId,
+    table,
+    rolls,
+    charismaMod,
+    rng,
   })
 
-  // CHA modifier of the viewed PC
-  total += charismaMod
-  components.push({
-    source: 'charisma_modifier',
-    delta: charismaMod,
-    detail: `${charismaMod >= 0 ? '+' : ''}${charismaMod} (${viewedPcId} CHA mod)`,
+  // Auto-roll magnitudes server-side using the same RNG, mirroring the
+  // pre-split behavior. The RNG was already advanced by phase 1's
+  // bucket permutation; we now consume one die per non-neutral slot.
+  const magnitudeRolls: Array<number | null> = phase1.components.map((c) => {
+    if (c.dice_kind === null) return null
+    const sides = c.dice_kind === 'd6' ? 6 : 10
+    return rng.d(sides)
   })
 
-  // Each preconception is a d20 with three result branches; the table
-  // stores them as separate rows keyed to `d20_range`. Group by 3 — the
-  // first 3 entries are the first preconception's branches, etc.
-  const branchesPerPreconception = 3
-  const totalPreconceptions = Math.floor(entry.preconceptions.length / branchesPerPreconception)
+  const finalized = finalizeFirstImpression({
+    components: phase1.components,
+    magnitudeRolls,
+    charismaMod: phase1.charisma_mod,
+    noRollBonus: phase1.no_roll_bonus,
+    viewedPcId,
+  })
 
-  // Fixed buckets — sizes preserved per PDF.
-  const BUCKETS: Array<[number, number]> = [[1, 6], [7, 13], [14, 20]]
-
-  for (let i = 0; i < totalPreconceptions; i++) {
-    const d20 = rolls[i]
-    if (typeof d20 !== 'number' || d20 < 1 || d20 > 20) {
-      throw new Error(`computeFirstImpression: rolls[${i}] is not a d20 (got ${d20})`)
-    }
-    const start = i * branchesPerPreconception
-    const branches = entry.preconceptions.slice(start, start + branchesPerPreconception)
-
-    // Tag each branch by its outcome class. `subtract` = negative, `null`
-    // = neutral, `add` = positive. The original table author orders them
-    // negative-then-neutral-then-positive but we don't rely on that order
-    // — we look it up.
-    const negative = branches.find((b) => b.ap_modifier?.direction === 'subtract')
-    const neutral = branches.find((b) => b.ap_modifier === null || b.ap_modifier === undefined)
-    const positive = branches.find((b) => b.ap_modifier?.direction === 'add')
-    if (!negative || !neutral || !positive) {
-      // Fall back to the legacy (PDF-default) mapping if the table isn't
-      // negative/neutral/positive shaped.
-      const branch = branches.find((b) => d20 >= b.d20_range[0] && d20 <= b.d20_range[1])
-      if (!branch) {
-        throw new Error(
-          `computeFirstImpression: no branch for preconception ${i} d20=${d20}`,
-        )
-      }
-      let delta = 0
-      if (branch.ap_modifier) {
-        const sides = diceSidesFromExpression(branch.ap_modifier.dice)
-        const dice = rng.d(sides)
-        delta = branch.ap_modifier.direction === 'subtract' ? -dice : dice
-      }
-      total += delta
-      components.push({
-        source: `preconception:${branch.id}`,
-        delta,
-        detail: branch.idea_text,
-      })
-      continue
-    }
-
-    // Random permutation: bucket index 0..2 -> outcome (one of the three
-    // branches). Fisher–Yates over a 3-element array via injected RNG so
-    // tests using `fixedSequenceRng` stay deterministic.
-    const outcomes = [negative, neutral, positive]
-    const permutation = shuffleWithRng([0, 1, 2], rng)
-    const bucketIdx = BUCKETS.findIndex(
-      ([lo, hi]) => d20 >= lo && d20 <= hi,
-    )
-    if (bucketIdx === -1) {
-      throw new Error(`computeFirstImpression: d20=${d20} out of bucket range`)
-    }
-    const branch = outcomes[permutation[bucketIdx]]
-
-    let delta = 0
-    if (branch.ap_modifier) {
-      const sides = diceSidesFromExpression(branch.ap_modifier.dice)
-      const dice = rng.d(sides)
-      delta = branch.ap_modifier.direction === 'subtract' ? -dice : dice
-    }
-    total += delta
-    components.push({
-      source: `preconception:${branch.id}`,
-      delta,
-      detail: branch.idea_text,
-    })
+  return {
+    total: finalized.total,
+    components: finalized.components_with_magnitude,
   }
-
-  return { total, components }
 }
 
 // ---------------------------------------------------------------------------

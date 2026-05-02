@@ -50,11 +50,6 @@ interface PetPeeveCard {
   dice: string
 }
 
-interface ApBand {
-  label: string
-  behaviour: string
-}
-
 interface RomanceTablesPublic {
   // We only fetch the turn_ons table for Step 1; the pet peeve and impression
   // copy is returned by their respective POSTs.
@@ -631,28 +626,46 @@ function PetPeevesStep({ characterId, onComplete }: Step2Props) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 3: First Impressions
+// Step 3: First Impressions — two-screen flow.
+//
+// Screen 1: player enters their three d20 results. Server picks
+//           preconception outcomes (no magnitude rolling) and returns
+//           the dice_kind the player should roll on Screen 2.
+//
+// Screen 2: player rolls the matching die per preconception (d6 negative,
+//           d10 positive, no roll for neutral) and enters the result.
+//           POST to /finalize seeds AP and ends intake.
+//
+// Per ADR "players roll for intentional acts": the band one-liner is
+// hidden entirely. The character sheet later surfaces only the three
+// outcome `idea_text` strings as roleplay context.
 // ---------------------------------------------------------------------------
 
 interface Step3Props {
   characterId: string
-  onComplete: (band: ApBand | null) => void
+  onComplete: () => void
 }
 
-interface ImpressionComponent {
-  source: string
-  delta: number
-  detail: string
+interface PickedOutcome {
+  slot_index: number
+  idea_text: string
+  dice_kind: 'd6' | 'd10' | null
+  direction: 'add' | 'subtract' | 'neutral'
 }
 
 function FirstImpressionStep({ characterId, onComplete }: Step3Props) {
+  // ----- Screen 1 state (d20 entry) -----
   const [rolls, setRolls] = useState<number[]>([])
   const [d20Input, setD20Input] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [resultBand, setResultBand] = useState<ApBand | null>(null)
-  const [components, setComponents] = useState<ImpressionComponent[]>([])
-  const [showSummary, setShowSummary] = useState(false)
+  const [submittingD20, setSubmittingD20] = useState(false)
+  const [d20Error, setD20Error] = useState<string | null>(null)
+
+  // ----- Screen 2 state (magnitude entry) -----
+  const [outcomes, setOutcomes] = useState<PickedOutcome[] | null>(null)
+  const [magInputs, setMagInputs] = useState<string[]>([])
+  const [magErrors, setMagErrors] = useState<Array<string | null>>([])
+  const [finalizing, setFinalizing] = useState(false)
+  const [finalizeError, setFinalizeError] = useState<string | null>(null)
 
   const TOTAL_ROLLS = 3
   const currentRollIdx = rolls.length
@@ -666,10 +679,10 @@ function FirstImpressionStep({ characterId, onComplete }: Step3Props) {
     setD20Input('')
   }
 
-  async function handleSubmit() {
+  async function handleSubmitAllD20s() {
     if (rolls.length !== TOTAL_ROLLS) return
-    setSubmitting(true)
-    setError(null)
+    setSubmittingD20(true)
+    setD20Error(null)
     try {
       const res = await fetch(`/api/characters/${characterId}/first-impression`, {
         method: 'POST',
@@ -678,82 +691,169 @@ function FirstImpressionStep({ characterId, onComplete }: Step3Props) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data?.error ?? `HTTP ${res.status}`)
-        setSubmitting(false)
+        setD20Error(data?.error ?? `HTTP ${res.status}`)
+        setSubmittingD20(false)
         return
       }
-      // The API intentionally returns components + band only (no number).
-      setComponents(data.components ?? [])
-      setResultBand(data.current_ap_band ?? null)
-      setShowSummary(true)
+      const picked: PickedOutcome[] = data.outcomes ?? []
+      setOutcomes(picked)
+      setMagInputs(picked.map(() => ''))
+      setMagErrors(picked.map(() => null))
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setD20Error(err instanceof Error ? err.message : String(err))
     } finally {
-      setSubmitting(false)
+      setSubmittingD20(false)
     }
   }
 
-  if (showSummary) {
-    // Band-flavoured one-liner. Per UX: "Do NOT show the AP number total".
-    const bandFlavour: Record<string, string> = {
-      exhausted: 'utterly worn out',
-      cold: 'cold and superior',
-      dismissive: 'unimpressed and snarky',
-      distant: 'cool and aloof',
-      polite: 'cautiously courteous',
-      shy: 'shyly curious',
-      flirtatious: 'cautiously curious',
-      smitten: 'already a little starry-eyed',
-      committed: 'completely smitten',
-    }
-    const flavour = resultBand ? bandFlavour[resultBand.label] ?? resultBand.label : 'figuring it out'
+  // Per-card validation. Returns null if the field is OK, else a short
+  // inline error message.
+  function validateMagnitude(o: PickedOutcome, raw: string): string | null {
+    if (o.dice_kind === null) return null
+    if (raw.trim() === '') return null // empty = "not rolled yet"; not an error per se
+    const n = Number(raw)
+    if (!Number.isInteger(n)) return 'Enter a whole number.'
+    const max = o.dice_kind === 'd6' ? 6 : 10
+    if (n < 1 || n > max) return `Enter 1–${max}.`
+    return null
+  }
 
+  function setMagInputAt(i: number, raw: string) {
+    setMagInputs((prev) => prev.map((v, idx) => (idx === i ? raw : v)))
+    setMagErrors((prev) =>
+      prev.map((v, idx) =>
+        idx === i && outcomes ? validateMagnitude(outcomes[idx], raw) : v,
+      ),
+    )
+  }
+
+  // Continue button enabled only when every non-neutral slot has a
+  // valid roll AND no inline error is showing.
+  const canFinalize = (() => {
+    if (!outcomes) return false
+    for (let i = 0; i < outcomes.length; i++) {
+      const o = outcomes[i]
+      if (o.dice_kind === null) continue
+      const raw = magInputs[i]
+      const n = Number(raw)
+      const max = o.dice_kind === 'd6' ? 6 : 10
+      if (!Number.isInteger(n) || n < 1 || n > max) return false
+      if (magErrors[i]) return false
+    }
+    return true
+  })()
+
+  async function handleFinalize() {
+    if (!outcomes || !canFinalize) return
+    setFinalizing(true)
+    setFinalizeError(null)
+    const magnitude_rolls: Array<number | null> = outcomes.map((o, i) => {
+      if (o.dice_kind === null) return null
+      const n = Number(magInputs[i])
+      return n
+    })
+    try {
+      const res = await fetch(
+        `/api/characters/${characterId}/first-impression/finalize`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actor: characterId, magnitude_rolls }),
+        },
+      )
+      const data = await res.json()
+      if (!res.ok) {
+        setFinalizeError(data?.error ?? `HTTP ${res.status}`)
+        setFinalizing(false)
+        return
+      }
+      onComplete()
+    } catch (err) {
+      setFinalizeError(err instanceof Error ? err.message : String(err))
+      setFinalizing(false)
+    }
+  }
+
+  // ----- Screen 2: outcome reveal + per-slot magnitude entry -----
+  if (outcomes) {
     return (
       <div className="space-y-5">
         <header className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-pink-400">Step 3 of 3</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-pink-400">
+            Step 3 of 3
+          </p>
           <h2 className="text-2xl font-bold text-pink-200">First impressions</h2>
+          <p className="text-sm text-gray-400">
+            Three thoughts surface. Roll the die each one calls for.
+          </p>
         </header>
 
-        <div className="rounded-3xl bg-gradient-to-b from-pink-950/40 to-gray-950 border-2 border-pink-900/50 p-6 space-y-3">
-          <p className="text-base text-gray-300 leading-relaxed">
-            Your character starts out <span className="text-pink-200 font-bold">{flavour}</span>.
-          </p>
-          <p className="text-sm text-gray-500 italic">
-            From here on, it&apos;s a feeling — not a number.
-          </p>
-        </div>
+        <div className="space-y-3">
+          {outcomes.map((o, i) => {
+            const ordinal = i === 0 ? 'First' : i === 1 ? 'Second' : 'Third'
+            const isNeutral = o.dice_kind === null
+            const max = o.dice_kind === 'd6' ? 6 : 10
+            return (
+              <div
+                key={i}
+                className="rounded-2xl bg-gradient-to-b from-gray-900 to-gray-950 border-2 border-pink-900/40 p-5 space-y-3"
+              >
+                <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                  {ordinal} thought
+                </p>
+                <p className="text-base text-gray-200 leading-relaxed">{o.idea_text}</p>
 
-        {/* Per-preconception explainers (player-friendly) */}
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">What you noticed</p>
-          {components
-            .filter((c) => c.source.startsWith('preconception:'))
-            .map((c, i) => (
-              <div key={i} className="rounded-xl bg-gray-900 border border-gray-800 p-3">
-                <p className="text-sm text-gray-300 leading-relaxed">{c.detail}</p>
-                {c.delta !== 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {c.delta > 0 ? 'That landed well.' : 'That rubbed you wrong.'}
+                {isNeutral ? (
+                  <p className="text-sm text-gray-500 italic">
+                    No strong feeling either way.
                   </p>
-                )}
-                {c.delta === 0 && (
-                  <p className="text-xs text-gray-500 mt-1">No strong feeling either way.</p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-pink-300 font-semibold">
+                      Roll a {o.dice_kind}.
+                    </p>
+                    <input
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={o.dice_kind === 'd6' ? 1 : 2}
+                      value={magInputs[i] ?? ''}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                          .replace(/[^0-9]/g, '')
+                          .slice(0, o.dice_kind === 'd6' ? 1 : 2)
+                        setMagInputAt(i, raw)
+                      }}
+                      placeholder={`1–${max}`}
+                      className="w-full text-center text-4xl font-bold bg-gray-950 border-2 border-pink-900/60 rounded-2xl py-4 text-pink-200 placeholder-gray-700 focus:outline-none focus:border-pink-500"
+                    />
+                    {magErrors[i] && (
+                      <p className="text-xs text-pink-300 italic">{magErrors[i]}</p>
+                    )}
+                  </div>
                 )}
               </div>
-            ))}
+            )
+          })}
         </div>
 
+        {finalizeError && (
+          <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-xl p-3">
+            {finalizeError}
+          </p>
+        )}
+
         <button
-          onClick={() => onComplete(resultBand)}
-          className="w-full py-4 bg-pink-600 hover:bg-pink-500 text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
+          onClick={handleFinalize}
+          disabled={!canFinalize || finalizing}
+          className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors min-h-[52px] border border-pink-400 disabled:border-gray-700"
         >
-          Continue to your sheet
+          {finalizing ? 'Locking in…' : 'Continue to your sheet'}
         </button>
       </div>
     )
   }
 
+  // ----- Screen 1: d20 entry -----
   return (
     <div className="space-y-5">
       <header className="space-y-1">
@@ -788,9 +888,9 @@ function FirstImpressionStep({ characterId, onComplete }: Step3Props) {
         })}
       </div>
 
-      {error && (
+      {d20Error && (
         <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-xl p-3">
-          {error}
+          {d20Error}
         </p>
       )}
 
@@ -822,11 +922,11 @@ function FirstImpressionStep({ characterId, onComplete }: Step3Props) {
         </div>
       ) : (
         <button
-          onClick={handleSubmit}
-          disabled={submitting}
+          onClick={handleSubmitAllD20s}
+          disabled={submittingD20}
           className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
         >
-          {submitting ? 'Working…' : 'See result'}
+          {submittingD20 ? 'Working…' : 'Reveal my thoughts'}
         </button>
       )}
     </div>
@@ -936,7 +1036,7 @@ export default function RomanceIntake({
         {step === 3 && (
           <FirstImpressionStep
             characterId={characterId}
-            onComplete={() => onComplete()}
+            onComplete={onComplete}
           />
         )}
       </div>
