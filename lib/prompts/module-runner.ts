@@ -68,6 +68,16 @@ When a PC's action triggers a Turn-on or Pet Peeve, or when an in-combat event m
 
 **Discovery is the gameplay loop, so narrate the *reaction* even though the mechanic stays hidden.** Pet Peeves and Turn-ons are private to each phone — meaning the *labels* and *numbers* never appear in narration ("Wynn's Pet Peeve fired", "+5 attraction", "Tarric has the 'Show-offs' peeve" are all bugs). But the partner character's **observable reaction** absolutely does belong in narration: a small sigh, a sharpening of attention, eyes lingering a beat too long, a stiffened shoulder, a glance away. Drop sensory and behavioural cues an attentive player could read and intuit from over time. That is how the couple *discovers* each other's likes and dislikes — it is the whole point of the romance layer. Hide the rule; show the feeling. Bands ("polite", "smitten") shape narrative tone overall. Intimacy moments (hand-hold, hug, kiss) fire only when AP crosses the unlock threshold the script specifies; the runtime gates them and you'll see \`intimacy_available\` in the per-turn context when one's reachable. If \`date_night_mode = false\`, ignore all of this — romance hooks in the per-turn context are a no-op pass-through.
 
+## OPENING TURN (is_opening_turn = true)
+The per-turn scene context exposes a top-level boolean \`is_opening_turn\`. It is \`true\` exactly once per session — on the first turn, before any player action has fired. When \`is_opening_turn === true\`:
+
+1. **Deliver the scene's opening read-aloud beats.** Read \`scene.script.read_aloud_blocks[]\` (or whatever the scene's opening passage field is named) in your own voice, paraphrased without losing facts. Cover every beat the script lists — do not skip locations, NPCs, or sensory details the script names. This is what gives the players the fictional context they need to place their tokens.
+2. **Flip discovery for everyone the opening introduces.** Per the TOKEN DISCOVERY AND PLACEMENT rule below: emit \`{ "entity": "<token_id>", "field": "discovered", "value": true }\` in \`state_changes[]\` for *every* PC token id in \`pc_token_ids\` AND *every* NPC the opening narration names, describes, or makes plausibly perceivable (the ally seen through a window, the lookout on a roof, the dozing guard inside the room, etc.). Use the token's \`id\` field, never the display name.
+3. **Stop. Do not advance the scene or request a roll on this turn.** The players need a moment to read the narration and place their tokens on the map. Do not emit \`actions_required[]\` entries that demand a roll. \`scene_suggestions[]\` is fine if it helps the table figure out their first action ("you could approach the streambank, hail Wynn through the window, or scout around back").
+4. **Do not echo or reference the trigger.** The player message you see may be a short cue like "(Begin the scene.)". Do not narrate "you ask me to begin", do not mention sentinels, scene-start, or any meta language. Just open the scene as if the table just sat down.
+
+When \`is_opening_turn === false\` (the default for every other turn), this section is a no-op — handle the player's input normally.
+
 ## SCENE TRANSITIONS
 Scene boundaries are first-class. Do not free-text "the players walk to the manor" without emitting a \`scene_transition\` field on the response: \`{ to_scene_id, reason }\`. Only the scene's \`scene_exit_conditions\` define legitimate transitions. If a player's action would leave the scene by some other route, narrate them choosing not to (or being unable to) — and ask the table what they want to do instead.
 
@@ -131,7 +141,20 @@ export function buildModuleRunnerHeader(): string {
 export function buildSceneContextBlock(
   scene: SceneContext,
   gameState: Record<string, unknown> | null,
-  extras?: { current_rating?: string; date_night_mode?: boolean }
+  extras?: {
+    current_rating?: string
+    date_night_mode?: boolean
+    /**
+     * True only on the very first turn of a session (event log empty +
+     * host fired the `[scene_start]` sentinel). The cached header's
+     * OPENING TURN section keys off this flag — when true, the AI
+     * delivers the scene's `script.read_aloud_blocks` and flips
+     * discovery for PCs and any NPCs the opening introduces, then
+     * stops without advancing the scene or requesting a roll.
+     * Defaults to false (any normal player turn).
+     */
+    is_opening_turn?: boolean
+  }
 ): string {
   const tokens = Array.isArray((gameState ?? {}).tokens)
     ? ((gameState as { tokens: unknown[] }).tokens as Array<Record<string, unknown>>)
@@ -147,6 +170,7 @@ export function buildSceneContextBlock(
     pc_token_ids,
     current_rating: extras?.current_rating ?? 'PG',
     date_night_mode: extras?.date_night_mode ?? false,
+    is_opening_turn: extras?.is_opening_turn ?? false,
   }
   return `## CURRENT SCENE CONTEXT (per-turn — ground truth, do not contradict)\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``
 }

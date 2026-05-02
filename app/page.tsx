@@ -1430,15 +1430,33 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   }, [sessionId])
 
   // Auto-fire the scenario's opening kick on first turn.
-  // Keep these strings in sync with lib/scenarios/registry.ts.
+  //
+  // Two paths:
+  //   1. Module-runner sessions (v2, `session.module_id` set) — fire a
+  //      `[scene_start]` sentinel. The v2 route detects it + the empty
+  //      event log and sets `is_opening_turn: true` on the per-turn scene
+  //      context block; the AI delivers the scene script's opening
+  //      read_aloud and flips PC + visible-NPC discovery flags. The
+  //      sentinel is NOT echoed back to the player — the route strips it
+  //      before logging, and the AI's prompt tells it not to reference it.
+  //   2. Legacy WSC / random-encounter sessions (`module_id` NULL) — keep
+  //      the legacy text kick. These rely on the cached WSC system prompt
+  //      and have no scene script to reach for.
+  // Keep WSC kick strings in sync with lib/scenarios/registry.ts.
   useEffect(() => {
     if (loadingHistory) return
     if (log.length > 0 || isStreaming || isTyping) return
+
+    // Module-runner path — sentinel kick.
+    if (session.module_id) {
+      handleSubmit('[scene_start]')
+      return
+    }
+
+    // Legacy WSC path — text kicks.
     const kicks: Record<string, string> = {
       'wild-sheep-chase':
         '[DM]: Begin the adventure. Set the scene at The Wooly Flagon tavern in Millhaven.',
-      'blackthorn-clan':
-        "[DM]: Open Scenario 1. Deliver the full opening passage as described in your Section 9 instructions — all six beats, from the cold morning through to Tarric at the mill window with his finger to his lips. Use your own voice but cover every beat before handing off to the players.",
       'random-encounter':
         '[DM]: Combat test mode. Invent a party of 4 adventurers — give them names and classes (Fighter, Rogue, Cleric, Wizard). They are ambushed on a forest road by 3 bandits and a bandit captain. Roll initiative for all enemies. Request initiative rolls from each player character. Begin combat.',
     }
@@ -1446,7 +1464,6 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     if (!kick) {
       if (session.name === 'The Wild Sheep Chase') kick = kicks['wild-sheep-chase']
       else if (session.name.startsWith('Random Encounter')) kick = kicks['random-encounter']
-      else if (session.name.includes('Blackthorn')) kick = kicks['blackthorn-clan']
     }
     if (kick) handleSubmit(kick)
   }, [loadingHistory, restartKey]) // eslint-disable-line react-hooks/exhaustive-deps

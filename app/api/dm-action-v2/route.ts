@@ -95,6 +95,18 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'session_id is required' }, { status: 400 })
   }
 
+  // Detect the host's auto-fired opening sentinel. The host sends
+  // `[scene_start]` exactly once per session — when the event log is empty
+  // and `session.module_id` is set — to trigger the AI's opening narration
+  // (scene read_aloud + PC/visible-NPC discovery flips). See app/page.tsx
+  // "Auto-fire the scenario's opening kick on first turn".
+  //
+  // We accept it here only as a marker; the AI never sees the literal
+  // string. Instead the per-turn scene-context block carries
+  // `is_opening_turn: true` and the message body is replaced with a short
+  // human-readable cue.
+  const isSceneStartSentinel = player_input.trim() === '[scene_start]'
+
   // 1. Load game state and session metadata (incl. module_id) in parallel.
   let game_state: Awaited<ReturnType<typeof getGameState>> = null
   try {
@@ -169,13 +181,20 @@ export async function POST(req: NextRequest) {
   }
 
   // 3. Last-6 event-log replay (full JSON — see landmine #1 in ARCHITECTURE.md).
+  //    Also surface the full-log length so we can flag opening-turn behaviour
+  //    on the per-turn scene context (set when log is empty AND the host sent
+  //    the [scene_start] sentinel).
   let eventLog: Awaited<ReturnType<typeof getEventLog>> = []
+  let eventLogTotal = 0
   try {
     const fullLog = await getEventLog(session_id)
+    eventLogTotal = fullLog.length
     eventLog = fullLog.slice(-6)
   } catch (err) {
     console.error('[v2] Failed to fetch event log:', err)
   }
+
+  const isOpeningTurn = isSceneStartSentinel && eventLogTotal === 0
 
   const historyMessages: Anthropic.MessageParam[] = []
   for (const entry of eventLog) {
@@ -188,16 +207,30 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  // For the opening-turn sentinel, replace the user message with a short,
+  // non-narrated cue. The AI gets the actual instruction from the
+  // `is_opening_turn: true` flag on the scene-context block (see
+  // module-runner.ts header → OPENING TURN section). The user message is
+  // intentionally minimal so the AI does not try to echo or paraphrase it
+  // in narration.
+  const userMessageText = isOpeningTurn
+    ? '(Begin the scene.)'
+    : player_input.trim()
+
   const messages: Anthropic.MessageParam[] = [
     ...historyMessages,
-    { role: 'user', content: player_input.trim() },
+    { role: 'user', content: userMessageText },
   ]
 
   // 4. Build the split system prompt.
   const sceneBlock = buildSceneContextBlock(
     scene,
     (game_state as Record<string, unknown> | null) ?? null,
-    { current_rating: currentRating, date_night_mode: dateNightMode }
+    {
+      current_rating: currentRating,
+      date_night_mode: dateNightMode,
+      is_opening_turn: isOpeningTurn,
+    }
   )
 
   const systemPrompt: Anthropic.Messages.MessageCreateParams['system'] = [
@@ -242,7 +275,13 @@ export async function POST(req: NextRequest) {
 
         try {
           const dmResponse = parseDMResponse(fullText)
-          await appendEventLog(session_id, player_input.trim(), dmResponse)
+          // Log the sentinel under a stable, human-readable label so re-load
+          // history shows "[Opening scene]" rather than "[scene_start]". The
+          // exact recorded value doesn't gate anything — the host's
+          // re-fire guard is `event_log.length === 0`, which becomes false
+          // the moment any entry lands here.
+          const loggedInput = isOpeningTurn ? '[Opening scene]' : player_input.trim()
+          await appendEventLog(session_id, loggedInput, dmResponse)
 
           try {
             await applyStateChanges(session_id, dmResponse.state_changes, {
