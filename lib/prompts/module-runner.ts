@@ -74,6 +74,22 @@ Scene boundaries are first-class. Do not free-text "the players walk to the mano
 ## STATE CHANGES
 The runtime keeps live state (HP, conditions, tokens, plot point status, romance AP). Emit \`state_changes\` entries with \`entity\` (character or token name/id), \`field\` (\`hp\`, \`condition\`, \`position\`, \`current_scene_id\`, \`tokens\`, etc.), and \`value\`. The runtime routes each change to the right table. When a mandatory plot point fires, set its \`status_field\` (e.g. \`plot.escape_cell\`) to \`true\`. Romance AP deltas ride a separate field — \`attraction_point_changes[]\` — not \`state_changes\`. See ROMANCE SUBSYSTEM.
 
+## TOKEN DISCOVERY AND PLACEMENT (CRITICAL — gates the host map and sidebar)
+The host screen renders only **discovered** tokens. The per-turn scene context exposes \`game_state.tokens[]\` with each token's \`id\`, \`name\`, \`kind\` (\`"pc"\` or \`"npc"\`), and \`discovered\` flag (defaults to \`false\` for hostile NPCs and to whatever the seed set for PCs). When you introduce a token in narration, you flip its \`discovered\` flag in the same response. If you don't, the player sees the name in narration but has no card or token to interact with — that is the bug we are preventing.
+
+**HARD RULE — narration and state_change must travel together.** Whenever your narration mentions, names, describes, or otherwise introduces an NPC who appears in the per-turn scene context's \`scene.npcs[]\`, the manifest's \`shared_npcs[]\`, or any token in \`game_state.tokens[]\` with \`discovered: false\`, you MUST emit \`{ "entity": "<token_id>", "field": "discovered", "value": true }\` in \`state_changes[]\` in the SAME response. No exceptions. The matcher resolves IDs only — use the token's \`id\` field (e.g. \`harold-longfingers\`, \`ruffian_3\`, \`lookout\`), never the display name. Narration may still call them "Harold" or "the lookout"; the \`entity\` field carries the id.
+
+**PC placement.** Player characters are scene-setting context the script establishes up front, not player-earned discoveries. If a PC token (\`kind: "pc"\`) shows \`discovered: false\` in \`game_state.tokens[]\` and the opening narration places that PC in the scene, flip them in the same opening response: \`{ "entity": "<pc_token_id>", "field": "discovered", "value": true }\`. The \`pc_token_ids\` field on the per-turn scene context lists the PC token ids for this scene if the runtime surfaced it; otherwise read them off \`game_state.tokens[]\` where \`kind === "pc"\`.
+
+**Pacing.** Don't reveal everything at once. Reveal NPCs *as the players see, hear, or have plausibly perceived them*. The script often makes this explicit (a lookout visible from the woodline; a sleeping captive visible through a window; ruffians in another room becoming known when their voices are heard or their door is opened). Reveal one at a time when the fiction supports it; reveal in a batch when the script's opening passage names several at once. The pacing rule applies to the timing of reveals; the HARD RULE above applies to the *bind* between narration and state_change in the turn the reveal happens.
+
+**Anti-patterns — do not do these.**
+1. **Mentioning an NPC in narration without flipping discovered.** Breaks the host map and sidebar. Always pair the narration with the state_change in the same turn.
+2. **Using the display name as \`entity\`.** Wrong: \`{ "entity": "Harold", "field": "discovered", "value": true }\`. Right: \`{ "entity": "harold-longfingers", "field": "discovered", "value": true }\` (or whatever the token's \`id\` field is in \`game_state.tokens[]\`). Display names can repeat across tokens; ids are unique and stable.
+3. **Flipping a token id that doesn't exist in \`game_state.tokens[]\`.** The matcher will warn and skip the change. Always verify the id is present in the per-turn payload before referencing it.
+
+**Modules without discovery.** Some modules don't use the \`discovered\` flag at all — every token in \`game_state.tokens[]\` already has \`discovered: true\` (or the field is absent). In that case the rule no-ops naturally: there is nothing to flip. Don't invent token ids that aren't in the per-turn payload.
+
 ## HIDDEN STATS (NEVER SURFACE)
 Some character fields are private DM data. Never surface them in narration or as numbers in UI:
 - \`tolerance_threshold\` (legacy WSC drunkenness — deprecated; never narrate)
@@ -104,15 +120,31 @@ export function buildModuleRunnerHeader(): string {
  * (NO cache_control). Carries the parsed scene plus a slim live-state
  * payload merged from `game_state`. Mutations the runtime cares about
  * always come back via the response schema, never by direct edit here.
+ *
+ * Surfaces a top-level `pc_token_ids` array derived from
+ * `game_state.tokens[]` (entries where `kind === "pc"`). The
+ * module-runner header's TOKEN DISCOVERY AND PLACEMENT section refers
+ * to this field by name when telling the AI which token ids to flip
+ * for PC placement. Module-agnostic — modules that don't seed PC
+ * tokens will see an empty array.
  */
 export function buildSceneContextBlock(
   scene: SceneContext,
   gameState: Record<string, unknown> | null,
   extras?: { current_rating?: string; date_night_mode?: boolean }
 ): string {
+  const tokens = Array.isArray((gameState ?? {}).tokens)
+    ? ((gameState as { tokens: unknown[] }).tokens as Array<Record<string, unknown>>)
+    : []
+  const pc_token_ids = tokens
+    .filter((t) => t && (t.kind === 'pc' || t.kind === 'PC'))
+    .map((t) => (typeof t.id === 'string' ? t.id : null))
+    .filter((id): id is string => !!id)
+
   const payload = {
     scene,
     game_state: gameState ?? {},
+    pc_token_ids,
     current_rating: extras?.current_rating ?? 'PG',
     date_night_mode: extras?.date_night_mode ?? false,
   }
