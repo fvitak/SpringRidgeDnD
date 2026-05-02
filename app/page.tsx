@@ -1448,7 +1448,13 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     if (log.length > 0 || isStreaming || isTyping) return
 
     // Module-runner path — sentinel kick.
-    if (session.module_id) {
+    // Defensive fallback: if a session has scenario_id = 'blackthorn-clan'
+    // but module_id is NULL (pre-wiring backfill case), still treat it as
+    // module-runner. The v2 route also infers module_id from scenario_id
+    // when the column is null, so the [scene_start] kick lands.
+    const isModuleRunner =
+      Boolean(session.module_id) || session.scenario_id === 'blackthorn-clan'
+    if (isModuleRunner) {
       handleSubmit('[scene_start]')
       return
     }
