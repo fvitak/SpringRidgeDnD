@@ -117,15 +117,6 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
   // the player can navigate freely back and forth.
   const [cardIndex, setCardIndex] = useState(0)
   const [picked, setPicked] = useState<number[]>([])
-  // Per-pick intensity. Order parallels `picked`. Pure UI flavor in v1 — NOT
-  // sent to the server, NOT persisted. The POST body stays
-  // { chosen_rolls: [...] }; intensity exists only to colour the chip and let
-  // the player feel ownership of the pick. If a future story wants to promote
-  // this to a mechanical layer (e.g., AP multiplier), do it then — don't
-  // speculate now.
-  type Intensity = 'that_works' | 'oh_yeah' | 'give_me'
-  const [chosenIntensities, setChosenIntensities] = useState<Intensity[]>([])
-  const [showConfirm, setShowConfirm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -133,6 +124,15 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
   const card = shuffled[cardIndex]
   const isPicked = card ? picked.includes(card.roll) : false
   const canPickMore = picked.length < 3
+
+  // The picker button label escalates across the player's pick *count*, not
+  // per-card intensity. First pick reads "That Works", second "Oh Yeah", third
+  // "Give Me". Pure derivation — no state.
+  function pickerLabel(count: number): string {
+    if (count === 0) return 'That Works'
+    if (count === 1) return 'Oh Yeah'
+    return 'Give Me'
+  }
 
   // Touch gesture handling — tracks the start coords of a single touch and
   // computes a horizontal swipe on touch end. Threshold is 40px so vertical
@@ -173,29 +173,52 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
 
   // Keyboard arrows — desktop / iPad-with-keyboard fallback.
   useEffect(() => {
-    if (showConfirm) return
     function onKey(e: KeyboardEvent) {
       if (e.key === 'ArrowRight') goNext()
       else if (e.key === 'ArrowLeft') goPrev()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [goNext, goPrev, showConfirm])
+  }, [goNext, goPrev])
+
+  // Find the next unpicked card after the current index, wrapping forward only
+  // (we don't loop). If everything from cardIndex+1..end is picked we stay put.
+  const advanceToNextUnpicked = useCallback(
+    (currentPicked: number[]) => {
+      for (let i = cardIndex + 1; i < total; i++) {
+        const c = shuffled[i]
+        if (c && !currentPicked.includes(c.roll)) {
+          setCardIndex(i)
+          return
+        }
+      }
+      // No unpicked card ahead — try scanning from the start, in case the player
+      // navigated past unpicked cards on the way here.
+      for (let i = 0; i < cardIndex; i++) {
+        const c = shuffled[i]
+        if (c && !currentPicked.includes(c.roll)) {
+          setCardIndex(i)
+          return
+        }
+      }
+      // Otherwise: stay put.
+    },
+    [cardIndex, shuffled, total],
+  )
 
   function unpickCurrent() {
     if (!card) return
-    const idx = picked.indexOf(card.roll)
-    if (idx < 0) return
+    if (!picked.includes(card.roll)) return
     setPicked((prev) => prev.filter((r) => r !== card.roll))
-    setChosenIntensities((prev) => prev.filter((_, i) => i !== idx))
   }
 
-  function pickCurrentWith(intensity: Intensity) {
+  function pickCurrent() {
     if (!card) return
     if (picked.includes(card.roll)) return
     if (picked.length >= 3) return
-    setPicked((prev) => [...prev, card.roll])
-    setChosenIntensities((prev) => [...prev, intensity])
+    const nextPicked = [...picked, card.roll]
+    setPicked(nextPicked)
+    advanceToNextUnpicked(nextPicked)
   }
 
   // Tap a chip in the pile -> jump the carousel to that card. We considered
@@ -205,14 +228,6 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
   function jumpToRoll(roll: number) {
     const idx = shuffled.findIndex((c) => c.roll === roll)
     if (idx >= 0) setCardIndex(idx)
-  }
-
-  function handleStartOver() {
-    setPicked([])
-    setChosenIntensities([])
-    setCardIndex(0)
-    setShowConfirm(false)
-    setError(null)
   }
 
   async function handleConfirm() {
@@ -236,61 +251,6 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
       setError(err instanceof Error ? err.message : String(err))
       setSubmitting(false)
     }
-  }
-
-  // ---------- Confirm screen ----------
-  if (showConfirm) {
-    const pickedCards = picked
-      .map((r) => shuffled.find((c) => c.roll === r))
-      .filter((c): c is TurnOnCard => !!c)
-    return (
-      <div className="space-y-5">
-        <header className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-pink-400">Step 1 of 3</p>
-          <h2 className="text-2xl font-bold text-pink-200">Lock these in?</h2>
-          <p className="text-sm text-gray-400">Three turn-ons your character can&apos;t help but notice.</p>
-        </header>
-
-        <div className="space-y-3">
-          {pickedCards.map((c) => (
-            <div key={c.roll} className="rounded-2xl bg-gray-900 border border-pink-900/60 p-4">
-              <p className="text-base font-bold text-pink-200">{c.name}</p>
-              <p className="text-sm text-gray-400 mt-1 leading-relaxed">{c.effect_text}</p>
-            </div>
-          ))}
-        </div>
-
-        {error && (
-          <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-xl p-3">
-            {error}
-          </p>
-        )}
-
-        <div className="space-y-2">
-          <button
-            onClick={handleConfirm}
-            disabled={submitting}
-            className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
-          >
-            {submitting ? 'Locking in…' : 'Lock me in →'}
-          </button>
-          <button
-            onClick={() => setShowConfirm(false)}
-            disabled={submitting}
-            className="w-full py-3 text-sm text-gray-400 hover:text-gray-200 underline disabled:opacity-40"
-          >
-            Back to picking
-          </button>
-          <button
-            onClick={handleStartOver}
-            disabled={submitting}
-            className="w-full py-2 text-xs text-gray-500 hover:text-gray-300 underline disabled:opacity-40"
-          >
-            Start over
-          </button>
-        </div>
-      </div>
-    )
   }
 
   // ---------- Carousel ----------
@@ -384,13 +344,11 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
         </button>
       </div>
 
-      {/* Primary action — three escalating "yes" buttons for un-picked cards,
-          single Remove for picked cards. The three buttons all pick the same
-          turn-on; the difference is the intensity tag attached to the chip in
-          the picked pile. Intensity is flavor-only in v1 (not sent to the
-          server). When the picked list is full, the buttons disable rather
-          than morphing into a "swap" hint — the chip pile already explains
-          how to free a slot. */}
+      {/* Primary action — a single picker button whose label escalates with
+          the player's pick count (0 → "That Works", 1 → "Oh Yeah", 2 → "Give
+          Me"). When the active card is already picked, the button reads
+          "Remove". When the list is full and the active card isn't picked,
+          the button disables with a soft swap hint. */}
       {isPicked ? (
         <button
           onClick={unpickCurrent}
@@ -400,29 +358,13 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
         </button>
       ) : (
         <div className="space-y-2">
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => pickCurrentWith('that_works')}
-              disabled={!canPickMore}
-              className="py-3 px-2 font-bold text-sm rounded-2xl transition-colors min-h-[52px] bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-slate-100 border border-slate-500"
-            >
-              That Works
-            </button>
-            <button
-              onClick={() => pickCurrentWith('oh_yeah')}
-              disabled={!canPickMore}
-              className="py-3 px-2 font-bold text-sm rounded-2xl transition-colors min-h-[52px] bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white border border-rose-400"
-            >
-              Oh Yeah
-            </button>
-            <button
-              onClick={() => pickCurrentWith('give_me')}
-              disabled={!canPickMore}
-              className="py-3 px-2 font-bold text-sm rounded-2xl transition-colors min-h-[52px] bg-fuchsia-700 hover:bg-fuchsia-600 disabled:opacity-40 disabled:cursor-not-allowed text-white border border-fuchsia-400"
-            >
-              Give Me
-            </button>
-          </div>
+          <button
+            onClick={pickCurrent}
+            disabled={!canPickMore}
+            className="w-full py-4 font-bold text-base rounded-2xl transition-colors min-h-[52px] bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white border border-pink-400"
+          >
+            {pickerLabel(picked.length)}
+          </button>
           {!canPickMore && (
             <p className="text-xs text-gray-500 italic text-center">
               List is full — remove one to swap.
@@ -431,27 +373,17 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
         </div>
       )}
 
-      {/* Picked pile — sticky strip at the bottom of the flow showing chosen
-          turn-ons in pick order. Trophy shelf, not waste bin. Tap a chip to
+      {/* Picked pile — strip showing chosen turn-ons in pick order. Neutral
+          chip styling; no per-pick intensity differentiation. Tap a chip to
           jump the carousel to that card; the player then taps "Remove" on
           the card itself to un-pick. */}
       <div className="rounded-2xl bg-gray-900/70 border border-pink-900/40 p-3 space-y-2">
-        <div className="flex items-center justify-between text-xs">
-          <p className="font-semibold uppercase tracking-widest text-pink-400">
-            Your picks{' '}
-            <span className="text-gray-500 normal-case font-normal">
-              ({picked.length} of 3)
-            </span>
-          </p>
-          {picked.length > 0 && (
-            <button
-              onClick={handleStartOver}
-              className="text-gray-500 hover:text-gray-300 underline"
-            >
-              Clear
-            </button>
-          )}
-        </div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-pink-400">
+          Your picks{' '}
+          <span className="text-gray-500 normal-case font-normal">
+            ({picked.length} of 3)
+          </span>
+        </p>
         {pickedCards.length === 0 ? (
           <p className="text-xs text-gray-600 italic px-1 py-2">
             Nothing picked yet. Browse the deck and tap the ones that fit.
@@ -460,28 +392,9 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
           <div className="flex flex-wrap gap-2">
             {pickedCards.map((c, i) => {
               const isCurrent = card && c.roll === card.roll
-              const intensity = chosenIntensities[i]
-              // Tone per intensity. We avoid restyling the chip's structure;
-              // only the colour accent changes. A leading dot/dot-dot/dot-dot-dot
-              // gives a quiet visual rank for users who can't easily
-              // distinguish the hues.
               const toneClass = isCurrent
                 ? 'bg-pink-500 border-pink-400 text-white'
-                : intensity === 'give_me'
-                ? 'bg-fuchsia-900/60 border-fuchsia-500 text-fuchsia-100 hover:bg-fuchsia-800/70'
-                : intensity === 'oh_yeah'
-                ? 'bg-rose-900/50 border-rose-600 text-rose-100 hover:bg-rose-800/60'
-                : intensity === 'that_works'
-                ? 'bg-slate-800 border-slate-500 text-slate-100 hover:bg-slate-700'
                 : 'bg-pink-900/40 border-pink-800 text-pink-200 hover:bg-pink-800/60'
-              const intensityMark =
-                intensity === 'give_me'
-                  ? '•••'
-                  : intensity === 'oh_yeah'
-                  ? '••'
-                  : intensity === 'that_works'
-                  ? '•'
-                  : ''
               return (
                 <button
                   key={c.roll}
@@ -491,9 +404,6 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
                 >
                   <span className="mr-1 opacity-60">{i + 1}.</span>
                   {c.name}
-                  {intensityMark && (
-                    <span className="ml-1 opacity-70 tracking-tight">{intensityMark}</span>
-                  )}
                 </button>
               )
             })}
@@ -501,17 +411,35 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
         )}
       </div>
 
-      {/* Confirm — disabled until 3 picked, with a soft hint underneath. The
-          copy "Lock me in" deliberately frames the player (not the list) as
-          what's getting locked in — they're exposing their turn-ons. */}
-      <div className="space-y-1">
-        <button
-          onClick={() => setShowConfirm(true)}
-          disabled={picked.length !== 3}
-          className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
-        >
-          {picked.length === 3 ? 'Lock me in →' : `Pick ${remaining} more`}
-        </button>
+      {error && (
+        <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-xl p-3">
+          {error}
+        </p>
+      )}
+
+      {/* Persistent bottom CTA — visible from the start of Step 1, disabled
+          until 3 picks. Submits straight to the API + advances; no separate
+          review screen. Spacer below keeps the sticky button from covering
+          the chip pile when the list is short. */}
+      <div className="h-20" aria-hidden="true" />
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-gray-950 via-gray-950 to-gray-950/80 px-4 pt-3 pb-4 border-t border-pink-900/40">
+        <div className="max-w-md mx-auto">
+          <button
+            onClick={handleConfirm}
+            disabled={picked.length !== 3 || submitting}
+            className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:bg-gray-800 disabled:text-gray-500 disabled:border-gray-700 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors min-h-[52px] border border-pink-400"
+          >
+            {submitting
+              ? 'Locking in…'
+              : picked.length === 3
+              ? 'Lock me in →'
+              : remaining === 3
+              ? 'Pick three'
+              : remaining === 2
+              ? 'Pick two more'
+              : 'Pick one more'}
+          </button>
+        </div>
       </div>
     </div>
   )
