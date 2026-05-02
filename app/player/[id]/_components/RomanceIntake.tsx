@@ -117,6 +117,14 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
   // the player can navigate freely back and forth.
   const [cardIndex, setCardIndex] = useState(0)
   const [picked, setPicked] = useState<number[]>([])
+  // Per-pick intensity. Order parallels `picked`. Pure UI flavor in v1 — NOT
+  // sent to the server, NOT persisted. The POST body stays
+  // { chosen_rolls: [...] }; intensity exists only to colour the chip and let
+  // the player feel ownership of the pick. If a future story wants to promote
+  // this to a mechanical layer (e.g., AP multiplier), do it then — don't
+  // speculate now.
+  type Intensity = 'that_works' | 'oh_yeah' | 'give_me'
+  const [chosenIntensities, setChosenIntensities] = useState<Intensity[]>([])
   const [showConfirm, setShowConfirm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -174,15 +182,20 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
     return () => window.removeEventListener('keydown', onKey)
   }, [goNext, goPrev, showConfirm])
 
-  function togglePickCurrent() {
+  function unpickCurrent() {
     if (!card) return
-    if (picked.includes(card.roll)) {
-      // Un-pick (frees a slot, re-disables confirm if we drop below 3).
-      setPicked((prev) => prev.filter((r) => r !== card.roll))
-      return
-    }
+    const idx = picked.indexOf(card.roll)
+    if (idx < 0) return
+    setPicked((prev) => prev.filter((r) => r !== card.roll))
+    setChosenIntensities((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  function pickCurrentWith(intensity: Intensity) {
+    if (!card) return
+    if (picked.includes(card.roll)) return
     if (picked.length >= 3) return
     setPicked((prev) => [...prev, card.roll])
+    setChosenIntensities((prev) => [...prev, intensity])
   }
 
   // Tap a chip in the pile -> jump the carousel to that card. We considered
@@ -196,6 +209,7 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
 
   function handleStartOver() {
     setPicked([])
+    setChosenIntensities([])
     setCardIndex(0)
     setShowConfirm(false)
     setError(null)
@@ -258,7 +272,7 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
             disabled={submitting}
             className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
           >
-            {submitting ? 'Locking in...' : 'Lock these in →'}
+            {submitting ? 'Locking in…' : 'Lock me in →'}
           </button>
           <button
             onClick={() => setShowConfirm(false)}
@@ -370,22 +384,52 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
         </button>
       </div>
 
-      {/* Primary action — That's me / Remove for the current card. */}
-      <button
-        onClick={togglePickCurrent}
-        disabled={!isPicked && !canPickMore}
-        className={`w-full py-4 font-bold text-base rounded-2xl transition-colors min-h-[52px] ${
-          isPicked
-            ? 'bg-gray-800 hover:bg-gray-700 border border-pink-700 text-pink-200'
-            : 'bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white'
-        }`}
-      >
-        {isPicked
-          ? 'Remove'
-          : canPickMore
-          ? "That's me"
-          : 'List is full — remove one to swap'}
-      </button>
+      {/* Primary action — three escalating "yes" buttons for un-picked cards,
+          single Remove for picked cards. The three buttons all pick the same
+          turn-on; the difference is the intensity tag attached to the chip in
+          the picked pile. Intensity is flavor-only in v1 (not sent to the
+          server). When the picked list is full, the buttons disable rather
+          than morphing into a "swap" hint — the chip pile already explains
+          how to free a slot. */}
+      {isPicked ? (
+        <button
+          onClick={unpickCurrent}
+          className="w-full py-4 font-bold text-base rounded-2xl transition-colors min-h-[52px] bg-gray-800 hover:bg-gray-700 border border-pink-700 text-pink-200"
+        >
+          Remove
+        </button>
+      ) : (
+        <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => pickCurrentWith('that_works')}
+              disabled={!canPickMore}
+              className="py-3 px-2 font-bold text-sm rounded-2xl transition-colors min-h-[52px] bg-slate-700 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed text-slate-100 border border-slate-500"
+            >
+              That Works
+            </button>
+            <button
+              onClick={() => pickCurrentWith('oh_yeah')}
+              disabled={!canPickMore}
+              className="py-3 px-2 font-bold text-sm rounded-2xl transition-colors min-h-[52px] bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white border border-rose-400"
+            >
+              Oh Yeah
+            </button>
+            <button
+              onClick={() => pickCurrentWith('give_me')}
+              disabled={!canPickMore}
+              className="py-3 px-2 font-bold text-sm rounded-2xl transition-colors min-h-[52px] bg-fuchsia-700 hover:bg-fuchsia-600 disabled:opacity-40 disabled:cursor-not-allowed text-white border border-fuchsia-400"
+            >
+              Give Me
+            </button>
+          </div>
+          {!canPickMore && (
+            <p className="text-xs text-gray-500 italic text-center">
+              List is full — remove one to swap.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Picked pile — sticky strip at the bottom of the flow showing chosen
           turn-ons in pick order. Trophy shelf, not waste bin. Tap a chip to
@@ -416,19 +460,40 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
           <div className="flex flex-wrap gap-2">
             {pickedCards.map((c, i) => {
               const isCurrent = card && c.roll === card.roll
+              const intensity = chosenIntensities[i]
+              // Tone per intensity. We avoid restyling the chip's structure;
+              // only the colour accent changes. A leading dot/dot-dot/dot-dot-dot
+              // gives a quiet visual rank for users who can't easily
+              // distinguish the hues.
+              const toneClass = isCurrent
+                ? 'bg-pink-500 border-pink-400 text-white'
+                : intensity === 'give_me'
+                ? 'bg-fuchsia-900/60 border-fuchsia-500 text-fuchsia-100 hover:bg-fuchsia-800/70'
+                : intensity === 'oh_yeah'
+                ? 'bg-rose-900/50 border-rose-600 text-rose-100 hover:bg-rose-800/60'
+                : intensity === 'that_works'
+                ? 'bg-slate-800 border-slate-500 text-slate-100 hover:bg-slate-700'
+                : 'bg-pink-900/40 border-pink-800 text-pink-200 hover:bg-pink-800/60'
+              const intensityMark =
+                intensity === 'give_me'
+                  ? '•••'
+                  : intensity === 'oh_yeah'
+                  ? '••'
+                  : intensity === 'that_works'
+                  ? '•'
+                  : ''
               return (
                 <button
                   key={c.roll}
                   onClick={() => jumpToRoll(c.roll)}
-                  className={`px-3 py-2 rounded-full text-xs font-semibold border transition-colors ${
-                    isCurrent
-                      ? 'bg-pink-500 border-pink-400 text-white'
-                      : 'bg-pink-900/40 border-pink-800 text-pink-200 hover:bg-pink-800/60'
-                  }`}
+                  className={`px-3 py-2 rounded-full text-xs font-semibold border transition-colors ${toneClass}`}
                   aria-label={`Jump to ${c.name}`}
                 >
                   <span className="mr-1 opacity-60">{i + 1}.</span>
                   {c.name}
+                  {intensityMark && (
+                    <span className="ml-1 opacity-70 tracking-tight">{intensityMark}</span>
+                  )}
                 </button>
               )
             })}
@@ -436,14 +501,16 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
         )}
       </div>
 
-      {/* Confirm — disabled until 3 picked, with a soft hint underneath. */}
+      {/* Confirm — disabled until 3 picked, with a soft hint underneath. The
+          copy "Lock me in" deliberately frames the player (not the list) as
+          what's getting locked in — they're exposing their turn-ons. */}
       <div className="space-y-1">
         <button
           onClick={() => setShowConfirm(true)}
           disabled={picked.length !== 3}
           className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
         >
-          {picked.length === 3 ? 'Looks good →' : `Pick ${remaining} more`}
+          {picked.length === 3 ? 'Lock me in →' : `Pick ${remaining} more`}
         </button>
       </div>
     </div>
