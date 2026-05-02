@@ -10,9 +10,11 @@
 // Three steps:
 //   1. Turn-ons picker (deterministic shuffle of 20 cards, pick 3 via
 //      a horizontal carousel + visible picked pile + "That's me" button)
-//   2. Pet Peeves player-rolled d6 input — server fresh-shuffles the
-//      eligible pool per roll, two rolls total, deck reshuffles between
-//      so the same d6 number rarely yields the same peeve
+//   2. Pet Peeves player-rolled d20 input — server does a direct PDF
+//      mapping (d20 → peeve table). Two rolls total. If the rolled peeve
+//      is incompatible with the player's turn-ons OR duplicates a
+//      previously-rolled peeve, the server returns rerollNeeded and the
+//      player rolls again (per PDF p.6 rule).
 //   3. First Impressions player-rolled d20 input — server resolves with
 //      per-roll bucket randomization (outcome-to-bucket mapping randomized
 //      per preconception; bucket sizes 6/7/7 stay fixed)
@@ -458,34 +460,44 @@ interface Step2Props {
 }
 
 function PetPeevesStep({ characterId, onComplete }: Step2Props) {
-  // The player rolls a physical d6 twice — once per peeve. After each
-  // submission the server fresh-shuffles the eligible pool and returns
-  // the picked peeve. Reshuffling between rolls is the whole point: the
-  // same d6 number on the second roll yields a different peeve.
+  // The player rolls a physical d20 twice — once per peeve. The server
+  // maps d20 → peeve directly (PDF p.6). If the rolled peeve is
+  // incompatible with the player's turn-ons OR duplicates a previously-
+  // rolled peeve, the server returns { rerollNeeded: true } and the
+  // player rolls again (PDF reroll rule).
   const TOTAL_ROLLS = 2
   const [rollIdx, setRollIdx] = useState(0) // 0 or 1; equals "current roll number - 1"
-  const [d6Input, setD6Input] = useState('')
+  const [d20Input, setD20Input] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [revealed, setRevealed] = useState<PetPeeveCard[]>([])
   const [showReveal, setShowReveal] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [rerollNotice, setRerollNotice] = useState<string | null>(null)
 
-  const d6Value = Number(d6Input)
-  const d6Valid = Number.isInteger(d6Value) && d6Value >= 1 && d6Value <= 6
+  const d20Value = Number(d20Input)
+  const d20Valid = Number.isInteger(d20Value) && d20Value >= 1 && d20Value <= 20
 
-  async function handleSubmitD6() {
-    if (!d6Valid || submitting) return
+  async function handleSubmitD20() {
+    if (!d20Valid || submitting) return
     setSubmitting(true)
     setError(null)
     try {
       const res = await fetch(`/api/characters/${characterId}/pet-peeves`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actor: characterId, d6: d6Value }),
+        body: JSON.stringify({ actor: characterId, d20: d20Value }),
       })
       const data = await res.json()
       if (!res.ok) {
         setError(data?.error ?? `HTTP ${res.status}`)
+        setSubmitting(false)
+        return
+      }
+      // The dice didn't agree — soft prompt to reroll, keep the player's
+      // progress (rollIdx, revealed) intact.
+      if (data?.rerollNeeded) {
+        setRerollNotice("The dice didn't quite agree — try again.")
+        setD20Input('')
         setSubmitting(false)
         return
       }
@@ -498,7 +510,8 @@ function PetPeevesStep({ characterId, onComplete }: Step2Props) {
       setRevealed((prev) => [...prev, picked])
       setShowReveal(true)
       setSubmitting(false)
-      setD6Input('')
+      setD20Input('')
+      setRerollNotice(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setSubmitting(false)
@@ -507,6 +520,7 @@ function PetPeevesStep({ characterId, onComplete }: Step2Props) {
 
   function handleNextAfterReveal() {
     setShowReveal(false)
+    setRerollNotice(null)
     if (rollIdx + 1 >= TOTAL_ROLLS) {
       onComplete()
       return
@@ -556,39 +570,38 @@ function PetPeevesStep({ characterId, onComplete }: Step2Props) {
           onClick={handleNextAfterReveal}
           className="w-full py-4 bg-pink-600 hover:bg-pink-500 text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
         >
-          {revealed.length >= TOTAL_ROLLS ? 'Continue' : 'Roll the second d6'}
+          {revealed.length >= TOTAL_ROLLS ? 'Continue' : 'Roll the second d20'}
         </button>
       </div>
     )
   }
 
-  // Prompt screen — d6 numeric keypad input.
+  // Prompt screen — d20 numeric keypad input.
   return (
     <div className="space-y-5">
       <header className="space-y-1">
         <p className="text-xs font-semibold uppercase tracking-widest text-pink-400">Step 2 of 3</p>
         <h2 className="text-2xl font-bold text-pink-200">
-          Roll a d6 <span className="text-gray-500 font-normal">({rollIdx + 1}/{TOTAL_ROLLS})</span>
+          Roll a d20 <span className="text-gray-500 font-normal">({rollIdx + 1}/{TOTAL_ROLLS})</span>
         </h2>
         <p className="text-sm text-gray-400">
-          Roll a physical d6 (1–6) and enter the number. The deck reshuffles each roll, so
-          the same number can mean different things.
+          Roll a d20 and enter the number.
         </p>
       </header>
 
       <div className="rounded-3xl bg-gradient-to-b from-gray-900 to-gray-950 border-2 border-pink-900/30 p-6 space-y-4">
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-          Your d6
+          Your d20
         </p>
         <input
           inputMode="numeric"
           pattern="[0-9]*"
-          maxLength={1}
-          value={d6Input}
+          maxLength={2}
+          value={d20Input}
           onChange={(e) => {
-            // Strip non-digits and clamp to 1 char.
-            const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 1)
-            setD6Input(raw)
+            // Strip non-digits and clamp to 2 chars (d20 = 1..20).
+            const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 2)
+            setD20Input(raw)
           }}
           placeholder="?"
           autoFocus
@@ -599,6 +612,12 @@ function PetPeevesStep({ characterId, onComplete }: Step2Props) {
         </p>
       </div>
 
+      {rerollNotice && (
+        <p className="text-sm text-pink-300 bg-pink-950/40 border border-pink-900/60 rounded-xl p-3">
+          {rerollNotice}
+        </p>
+      )}
+
       {error && (
         <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-xl p-3">
           {error}
@@ -606,11 +625,11 @@ function PetPeevesStep({ characterId, onComplete }: Step2Props) {
       )}
 
       <button
-        onClick={handleSubmitD6}
-        disabled={!d6Valid || submitting}
+        onClick={handleSubmitD20}
+        disabled={!d20Valid || submitting}
         className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
       >
-        {submitting ? 'Shuffling…' : d6Valid ? 'Reveal' : 'Enter 1–6'}
+        {submitting ? 'Rolling…' : d20Valid ? 'Reveal' : 'Enter 1–20'}
       </button>
     </div>
   )

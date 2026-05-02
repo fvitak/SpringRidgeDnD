@@ -1,16 +1,17 @@
 /**
  * POST /api/characters/[id]/pet-peeves
  *
- * Body: { actor: <character_id>, d6?: 1-6 }
+ * Body: { actor: <character_id>, d20?: 1-20 }
  *
  * Two flows:
- *  - PIV-07 (current): the player rolls a physical d6 and POSTs the
- *    result. Server fresh-shuffles the eligible pet-peeve pool, takes the
- *    top 6, and picks `top6[d6 - 1]`. Each call rolls ONE peeve. The
- *    second call passes its own d6 — the server reads the already-stored
- *    `rolled_pet_peeve_rolls` to filter incompatible / duplicate peeves
- *    out of the pool, then reshuffles fresh.
- *  - Legacy (no `d6` in body): server auto-rolls two peeves at once via
+ *  - PIV-07 (current): the player rolls a physical d20 and POSTs the
+ *    result. Server does a direct PDF mapping (peeve.roll === d20). If
+ *    the peeve is incompatible with the player's chosen turn-ons or
+ *    duplicates a previously-rolled peeve, the server returns
+ *    `{ rerollNeeded: true, reason }` (HTTP 200 — the player did
+ *    nothing wrong, the dice just didn't agree). Otherwise it persists
+ *    and returns the resolved peeve.
+ *  - Legacy (no `d20` in body): server auto-rolls two peeves at once via
  *    `rollPetPeeves`. Kept so older callers / tests keep working.
  *
  * Requires the player to have already POSTed turn-ons.
@@ -29,7 +30,7 @@ import {
 } from '../romance/_shared'
 import {
   defaultRng,
-  pickPetPeeveFromD6,
+  pickPetPeeveFromD20,
   rollPetPeeves,
 } from '@/lib/romance/engine'
 
@@ -38,7 +39,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: characterId } = await params
-  let body: { actor?: string; d6?: unknown }
+  let body: { actor?: string; d20?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -69,12 +70,12 @@ export async function POST(
     )
   }
 
-  // Branch on whether the client provided a d6 (PIV-07 player-rolls flow)
+  // Branch on whether the client provided a d20 (PIV-07 player-rolls flow)
   // or expects the legacy auto-roll-both behaviour.
-  const d6Raw = body.d6
-  if (typeof d6Raw === 'number') {
-    if (!Number.isInteger(d6Raw) || d6Raw < 1 || d6Raw > 6) {
-      return Response.json({ error: 'd6 must be an integer 1-6' }, { status: 400 })
+  const d20Raw = body.d20
+  if (typeof d20Raw === 'number') {
+    if (!Number.isInteger(d20Raw) || d20Raw < 1 || d20Raw > 20) {
+      return Response.json({ error: 'd20 must be an integer 1-20' }, { status: 400 })
     }
     const alreadyRolled = (row.rolled_pet_peeve_rolls ?? []) as number[]
     if (alreadyRolled.length >= 2) {
@@ -84,20 +85,24 @@ export async function POST(
       )
     }
 
-    let picked: { roll: number }
-    try {
-      picked = pickPetPeeveFromD6({
-        d6: d6Raw,
-        chosenTurnOnRolls: row.chosen_turn_on_rolls,
-        excludeRolls: alreadyRolled,
-        tables,
-        rng: defaultRng,
+    const result = pickPetPeeveFromD20(
+      d20Raw,
+      row.chosen_turn_on_rolls,
+      alreadyRolled,
+      tables,
+    )
+
+    if (!result.valid) {
+      // The d20 didn't yield a usable peeve. Tell the client to reroll —
+      // 200 OK because the player didn't do anything wrong.
+      return Response.json({
+        ok: true,
+        rerollNeeded: true,
+        reason: result.reason,
       })
-    } catch (err) {
-      return Response.json({ error: (err as Error).message }, { status: 500 })
     }
 
-    const newRolled = [...alreadyRolled, picked.roll]
+    const newRolled = [...alreadyRolled, result.peeve.roll]
     const supabase = getSupabase()
     const { error } = await supabase
       .from('character_romance')
@@ -110,10 +115,9 @@ export async function POST(
       return Response.json({ error: `DB write failed: ${error.message}` }, { status: 500 })
     }
 
-    const e = tables.pet_peeves.find((t) => t.roll === picked.roll)!
     return Response.json({
       ok: true,
-      pet_peeve: { roll: e.roll, name: e.name, effect_text: e.effect_text, dice: e.dice },
+      pet_peeve: result.peeve,
       rolls_remaining: 2 - newRolled.length,
     })
   }

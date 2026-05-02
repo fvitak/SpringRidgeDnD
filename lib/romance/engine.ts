@@ -112,9 +112,8 @@ function blockedPeevesByTurnOns(
 
 /**
  * Fisher–Yates shuffle using the injected RNG. Pure: returns a new array,
- * does not mutate `arr`. Used by `pickPetPeeveFromD6` so the picked peeve's
- * deck order is fresh per roll (per PIV-07 polish: "same d6 number on the
- * second roll yields a different peeve").
+ * does not mutate `arr`. Still used by `computeFirstImpression` for the
+ * per-preconception bucket permutation.
  */
 function shuffleWithRng<T>(arr: T[], rng: RomanceRng): T[] {
   const out = arr.slice()
@@ -127,56 +126,92 @@ function shuffleWithRng<T>(arr: T[], rng: RomanceRng): T[] {
 }
 
 /**
- * Pick a single pet peeve given the player's physical d6 result.
- *
- * The picking rule (PIV-07 polish):
- *   1. Filter the 20 peeves to drop those blocked by the chosen turn-ons,
- *      already in `excludeRolls`, or pairwise-incompatible with any peeve
- *      already in `excludeRolls`.
- *   2. Fresh-shuffle the remaining peeves with the injected RNG. This is
- *      *not* deterministic per character — a fresh shuffle every roll is
- *      the whole point ("same d6 number ≠ same peeve across rolls").
- *   3. Take the top 6 entries of the shuffled deck and pick `top6[d6 - 1]`.
- *      If fewer than 6 candidates remain after filtering, the d6 picks into
- *      a wrapped index — modulo by the candidate count. This is rare in
- *      practice (the Blackthorn tables always leave ≥6 candidates) but
- *      keeps the function total.
+ * Pet-peeve entry shape returned by `pickPetPeeveFromD20`.
  */
-export function pickPetPeeveFromD6(args: {
-  d6: number
-  chosenTurnOnRolls: number[]
-  excludeRolls: number[]
-  tables: Pick<RomanceTables, 'turn_ons' | 'pet_peeves'>
-  rng?: RomanceRng
-}): { roll: number } {
-  const { d6, chosenTurnOnRolls, excludeRolls, tables, rng = defaultRng } = args
-  if (!Number.isInteger(d6) || d6 < 1 || d6 > 6) {
-    throw new Error(`pickPetPeeveFromD6: d6 must be 1-6 (got ${d6})`)
+export interface PickedPetPeeve {
+  roll: number
+  name: string
+  effect_text: string
+  dice: string
+}
+
+/**
+ * Result of `pickPetPeeveFromD20`. Discriminated union — caller checks
+ * `valid` and either reads `peeve` or surfaces the reroll prompt to the
+ * player.
+ */
+export type PickPetPeeveD20Result =
+  | { valid: true; peeve: PickedPetPeeve }
+  | {
+      valid: false
+      peeve: null
+      reason: 'incompatible_with_turn_ons' | 'duplicate' | 'pairwise_incompatible'
+    }
+
+/**
+ * Pick a single pet peeve via direct d20 → table lookup (PDF p.6 rule).
+ *
+ * The PDF-correct flow:
+ *   1. Direct mapping: peeve = pet_peeves.find(p => p.roll === d20).
+ *   2. If the peeve is blocked by the player's chosen turn-ons (in either
+ *      direction via `blockedPeevesByTurnOns`), return
+ *      { valid: false, reason: 'incompatible_with_turn_ons' }.
+ *   3. If the peeve was already rolled this session, return
+ *      { valid: false, reason: 'duplicate' }.
+ *   4. If the peeve is pairwise-incompatible with an already-rolled peeve,
+ *      return { valid: false, reason: 'pairwise_incompatible' }.
+ *
+ * Does NOT throw on invalid outcomes — the frontend prompts the player
+ * to reroll. The PDF's randomness is the d20 itself; we don't add a
+ * shuffle layer.
+ */
+export function pickPetPeeveFromD20(
+  d20: number,
+  chosenTurnOnRolls: number[],
+  alreadyRolledPeeveRolls: number[],
+  tables: Pick<RomanceTables, 'turn_ons' | 'pet_peeves'>,
+): PickPetPeeveD20Result {
+  if (!Number.isInteger(d20) || d20 < 1 || d20 > 20) {
+    throw new Error(`pickPetPeeveFromD20: d20 must be 1-20 (got ${d20})`)
   }
+  const entry = tables.pet_peeves.find((p) => p.roll === d20)
+  if (!entry) {
+    // Should be impossible if tables.pet_peeves covers 1-20, but be safe.
+    throw new Error(`pickPetPeeveFromD20: no pet peeve at roll=${d20}`)
+  }
+
+  // Duplicate of an already-rolled peeve.
+  if (alreadyRolledPeeveRolls.includes(d20)) {
+    return { valid: false, peeve: null, reason: 'duplicate' }
+  }
+
+  // Incompatible with the chosen turn-ons (bidirectional).
   const blocked = blockedPeevesByTurnOns(chosenTurnOnRolls, tables)
-  const excludeIncompats = new Set<number>()
-  for (const ex of excludeRolls) {
-    const e = tables.pet_peeves.find((p) => p.roll === ex)
-    if (!e) continue
-    for (const other of e.incompatible_with) excludeIncompats.add(other)
+  if (blocked.has(d20)) {
+    return { valid: false, peeve: null, reason: 'incompatible_with_turn_ons' }
   }
-  const candidates = tables.pet_peeves.filter((p) => {
-    if (blocked.has(p.roll)) return false
-    if (excludeRolls.includes(p.roll)) return false
-    if (excludeIncompats.has(p.roll)) return false
-    // Within-peeve: skip peeves that list any excluded peeve as incompat.
-    if (p.incompatible_with.some((other) => excludeRolls.includes(other))) return false
-    return true
-  })
-  if (candidates.length === 0) {
-    throw new Error('pickPetPeeveFromD6: no candidate peeves left after filtering')
+
+  // Pairwise incompatibility with already-rolled peeves.
+  for (const other of alreadyRolledPeeveRolls) {
+    const otherEntry = tables.pet_peeves.find((p) => p.roll === other)
+    if (!otherEntry) continue
+    if (otherEntry.incompatible_with.includes(d20)) {
+      return { valid: false, peeve: null, reason: 'pairwise_incompatible' }
+    }
+    if (entry.incompatible_with.includes(other)) {
+      return { valid: false, peeve: null, reason: 'pairwise_incompatible' }
+    }
   }
-  const shuffled = shuffleWithRng(candidates, rng)
-  const top = shuffled.slice(0, Math.min(6, shuffled.length))
-  // d6 - 1 is the player's intended index. If the candidate pool dropped
-  // below 6 we wrap so the call still resolves to a real entry.
-  const idx = (d6 - 1) % top.length
-  return { roll: top[idx].roll }
+
+  return {
+    valid: true,
+    peeve: {
+      roll: entry.roll,
+      name: entry.name,
+      effect_text: entry.effect_text,
+      dice: entry.dice,
+    },
+  }
 }
 
 /**

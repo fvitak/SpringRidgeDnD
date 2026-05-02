@@ -3,19 +3,24 @@
 // ---------------------------------------------------------------------------
 // RomanceSection — post-intake romance UI on the mobile sheet (PIV-07).
 //
-// Renders three cards on the player's phone:
+// Renders these cards on the player's phone:
 //   • Your Turn-ons (3) — name + effect text
 //   • Your Pet Peeves (2) — name + penalty text (private; partner never sees)
 //   • Your feeling toward Partner — band label + behaviour description
-//   • Partner's feeling toward you — band label + behaviour description only
+//
+// We do NOT render the partner's AP band. Per the PDF design intent, AP
+// bands are private per-player role-playing guidance — never shared with
+// the partner. The privacy-gated GET endpoint still returns the partner's
+// band to the client (that's the API's contract); the UI is the surface
+// that hides it. We keep the partner's *name* visible so the player knows
+// whose romance arc is being tracked.
 //
 // NEVER renders the AP number. The API doesn't expose it; we don't fetch it.
 //
-// Realtime: subscribes to character_romance row changes for self + partner
-// so band labels refresh when the AI fires attraction_point_changes deltas.
-// We re-fetch the privacy-gated GET endpoint on each event rather than
-// reading the row payload directly — the privacy gate stays the only
-// boundary the AP number can't cross.
+// Realtime: subscribes to character_romance row changes for self so the
+// player's own band label refreshes when the AI fires
+// attraction_point_changes deltas. Partner row changes are ignored at
+// the UI level (we no longer render anything from the partner shape).
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from 'react'
@@ -47,11 +52,6 @@ interface SelfRomance {
   current_ap_band: ApBand | null
 }
 
-interface PublicRomance {
-  character_id: string
-  current_ap_band: ApBand | null
-}
-
 interface PartnerInfo {
   id: string
   character_name: string
@@ -72,7 +72,6 @@ function getRealtimeClient() {
 export default function RomanceSection({ characterId, sessionId }: Props) {
   const [self, setSelf] = useState<SelfRomance | null>(null)
   const [partner, setPartner] = useState<PartnerInfo | null>(null)
-  const [partnerRomance, setPartnerRomance] = useState<PublicRomance | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Resolve partner via /api/sessions/[id]/players (the OTHER character).
@@ -115,47 +114,18 @@ export default function RomanceSection({ characterId, sessionId }: Props) {
     }
   }
 
-  // Partner romance fetch — privacy-gated; should ONLY return the band.
-  async function fetchPartner(partnerId: string) {
-    try {
-      const res = await fetch(
-        `/api/characters/${partnerId}/romance?viewer=${characterId}`,
-      )
-      if (!res.ok) return
-      const data = await res.json()
-      const shape = data?.data ?? null
-      // Defensive: if the gate ever leaked turn-ons or pet peeves into the
-      // partner shape, fail loud rather than render. Per the brief: "if the
-      // engineer notices a leak, that's a backend bug — fail loud rather
-      // than silently filter on the client."
-      if (shape && ('turn_ons' in shape || 'pet_peeves' in shape)) {
-        setError(
-          'Privacy invariant violated: partner shape leaked private fields. Stopping render.',
-        )
-        return
-      }
-      setPartnerRomance(shape)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  // Initial fetches.
+  // Initial fetch — self only. We no longer fetch the partner's romance
+  // shape; the partner's band is private per-player guidance and never
+  // rendered on the partner's phone.
   useEffect(() => {
     fetchSelf()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [characterId])
 
-  useEffect(() => {
-    if (partner) fetchPartner(partner.id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partner])
-
-  // Realtime — listen for character_romance row updates and refresh bands.
+  // Realtime — listen for character_romance row updates and refresh self.
   // We listen on the table broadly (since postgres_changes filters per session
   // would require a join column we don't have) and filter client-side.
   useEffect(() => {
-    if (!partner) return
     const supabase = getRealtimeClient()
     if (!supabase) return
 
@@ -173,9 +143,9 @@ export default function RomanceSection({ characterId, sessionId }: Props) {
           if (!row?.character_id) return
           if (row.character_id === characterId) {
             fetchSelf()
-          } else if (row.character_id === partner.id) {
-            fetchPartner(partner.id)
           }
+          // Partner row changes are intentionally ignored — we don't
+          // render anything from the partner's romance shape.
         },
       )
       .subscribe()
@@ -184,7 +154,7 @@ export default function RomanceSection({ characterId, sessionId }: Props) {
       supabase.removeChannel(channel)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [characterId, partner?.id])
+  }, [characterId])
 
   if (error) {
     return (
@@ -214,7 +184,9 @@ export default function RomanceSection({ characterId, sessionId }: Props) {
         Romance
       </h2>
 
-      {/* Self band */}
+      {/* Self band — your own feeling toward your partner. We never
+          render the partner's band: AP bands are private per-player
+          role-playing guidance per the PDF design intent. */}
       {self.current_ap_band && (
         <div className="bg-gray-900 rounded-2xl p-4 border border-pink-900/60">
           <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">
@@ -225,21 +197,6 @@ export default function RomanceSection({ characterId, sessionId }: Props) {
           </p>
           <p className="text-sm text-gray-400 mt-1 leading-relaxed">
             {self.current_ap_band.behaviour}
-          </p>
-        </div>
-      )}
-
-      {/* Partner band — band-only by privacy gate */}
-      {partner && partnerRomance?.current_ap_band && (
-        <div className="bg-gray-900 rounded-2xl p-4 border border-pink-900/30">
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">
-            {partner.character_name}&apos;s feeling toward you
-          </p>
-          <p className="text-base font-bold text-pink-200 capitalize">
-            {partnerRomance.current_ap_band.label}
-          </p>
-          <p className="text-sm text-gray-400 mt-1 leading-relaxed">
-            {partnerRomance.current_ap_band.behaviour}
           </p>
         </div>
       )}
