@@ -283,8 +283,42 @@ export async function POST(req: NextRequest) {
           const loggedInput = isOpeningTurn ? '[Opening scene]' : player_input.trim()
           await appendEventLog(session_id, loggedInput, dmResponse)
 
+          // Defensive ID translation for `discovered` state_changes.
+          //
+          // Background: scene/manifest NPC `id` values are descriptive
+          // (e.g. "lookout-harold-longfingers", "arnie-wilkens"). The
+          // tokens those NPCs correspond to in `game_state.tokens` use
+          // short ids (e.g. "lookout", "ruffian_3"). Each NPC stat block
+          // carries an explicit `token_id` mapping. The module-runner
+          // prompt instructs the AI to emit `entity: <token_id>` for
+          // discovery flips, but the AI can still default to the more
+          // prominent `id` field. This translation makes the apply path
+          // resilient to that — if a `discovered` state_change's entity
+          // matches an NPC's `id` AND that NPC has a `token_id`, swap
+          // them before apply.
+          //
+          // No-op when the AI emits the right id directly.
+          const npcIdToTokenId = new Map<string, string>()
+          for (const npc of [...(scene.npcs ?? []), ...(manifest.shared_npcs ?? [])]) {
+            if (typeof npc.token_id === 'string' && npc.token_id.trim() !== '') {
+              npcIdToTokenId.set(npc.id, npc.token_id)
+            }
+          }
+          const translatedStateChanges = dmResponse.state_changes.map((sc) => {
+            if (sc.field === 'discovered' && typeof sc.entity === 'string') {
+              const mapped = npcIdToTokenId.get(sc.entity)
+              if (mapped && mapped !== sc.entity) {
+                console.warn(
+                  `[v2] Translating discovery entity "${sc.entity}" → "${mapped}" (AI used npc.id; should have used token_id).`,
+                )
+                return { ...sc, entity: mapped }
+              }
+            }
+            return sc
+          })
+
           try {
-            await applyStateChanges(session_id, dmResponse.state_changes, {
+            await applyStateChanges(session_id, translatedStateChanges, {
               dmOverrides: dmResponse.dm_overrides,
               sceneTransition: dmResponse.scene_transition,
               attractionPointChanges: dmResponse.attraction_point_changes,
