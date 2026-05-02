@@ -14,6 +14,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { xpForNextLevel, levelForXp, CLASS_FEATURES_BY_LEVEL, hasASI, SPELL_SLOTS_BY_LEVEL } from '@/lib/data/level-up-rules'
 import { CLASSES } from '@/lib/data/character-options'
+import RomanceIntake from './_components/RomanceIntake'
+import RomanceSection from './_components/RomanceSection'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -646,6 +648,19 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   const [savingRating, setSavingRating] = useState(false)
   const [pendingRating, setPendingRating] = useState<string | null>(null)
 
+  // Romance intake gating (PIV-07).
+  // intakeStatus: null while we don't yet know; { complete } drives the gate.
+  // The intake flow is shown when:
+  //   sessionInfo.date_night_mode === true && intakeStatus.complete === false
+  // and is hidden otherwise (including for non-Date-Night sessions like WSC).
+  const [intakeStatus, setIntakeStatus] = useState<{
+    has_turn_ons: boolean
+    has_pet_peeves: boolean
+    has_first_impression: boolean
+    complete: boolean
+    romance_enabled: boolean
+  } | null>(null)
+
   // Unwrap params (Next 15 async params)
   useEffect(() => {
     params.then(({ id }) => setCharacterId(id))
@@ -780,6 +795,42 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     return () => { cancelled = true; clearInterval(t) }
   }, [character?.session_id])
 
+  // Romance intake status fetch — only when Date Night Mode is active.
+  // The status endpoint is privacy-gated to viewer === id; we always pass
+  // the player's own character_id as both subject and viewer.
+  useEffect(() => {
+    if (!characterId) return
+    if (!sessionInfo?.date_night_mode) {
+      // Not Date Night → no intake gate; clear stale status.
+      setIntakeStatus(null)
+      return
+    }
+    let cancelled = false
+    async function load() {
+      try {
+        const res = await fetch(
+          `/api/characters/${characterId}/romance/status?viewer=${characterId}`,
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+        setIntakeStatus({
+          has_turn_ons: data.status?.has_turn_ons ?? false,
+          has_pet_peeves: data.status?.has_pet_peeves ?? false,
+          has_first_impression: data.status?.has_first_impression ?? false,
+          complete: data.status?.complete ?? false,
+          romance_enabled: Boolean(data.romance_enabled),
+        })
+      } catch {
+        // silent — sheet still works without intake gate (treated as complete)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [characterId, sessionInfo?.date_night_mode])
+
   const isMyTurn = Boolean(
     combatActive && character && activeCombatantName && activeCombatantName === character.character_name,
   )
@@ -839,6 +890,39 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           </p>
         </div>
       </div>
+    )
+  }
+
+  // ---------------------------------------------------------------------------
+  // Romance intake gate (PIV-07).
+  //
+  // Show the intake flow when:
+  //   - the session has Date Night Mode enabled, AND
+  //   - the romance subsystem is enabled for this module (server-side check), AND
+  //   - the character_romance row is missing or incomplete.
+  //
+  // For non-Date-Night sessions (e.g. Wild Sheep Chase), intakeStatus is null
+  // and we fall through to the normal sheet — no romance UI appears.
+  // ---------------------------------------------------------------------------
+  if (
+    sessionInfo?.date_night_mode &&
+    intakeStatus &&
+    intakeStatus.romance_enabled &&
+    !intakeStatus.complete
+  ) {
+    return (
+      <RomanceIntake
+        characterId={character.id}
+        initialStatus={{
+          has_turn_ons: intakeStatus.has_turn_ons,
+          has_pet_peeves: intakeStatus.has_pet_peeves,
+          has_first_impression: intakeStatus.has_first_impression,
+        }}
+        onComplete={() => {
+          // Re-fetch status; the intake component closes itself by flipping complete.
+          setIntakeStatus((s) => (s ? { ...s, complete: true, has_turn_ons: true, has_pet_peeves: true, has_first_impression: true } : s))
+        }}
+      />
     )
   }
 
@@ -946,6 +1030,16 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
             saving={savingRating}
             pending={pendingRating}
             onChange={handleRatingChange}
+          />
+        ) : null}
+
+        {/* Romance section (PIV-07) — only when Date Night Mode is on AND
+            the intake flow has been completed. The privacy gate at the
+            API layer is the source of truth for what's visible. */}
+        {sessionInfo?.date_night_mode && intakeStatus?.complete && intakeStatus.romance_enabled ? (
+          <RomanceSection
+            characterId={character.id}
+            sessionId={character.session_id}
           />
         ) : null}
 

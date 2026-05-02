@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "module_id": "blackthorn",
+  "name": "Rescue of the Blackthorn Clan",
+  "source_attribution": "© 2020 Urban Realms, by Catherine and Thomas Thrush. First in the Date Night Dungeons series. Stat blocks OGL 1.0a; story/romance content is the publisher's IP.",
+  "scenarios": [
+    {
+      "id": "blackthorn.s1",
+      "name": "Scenario One — The Old Mill",
+      "ordering": 1,
+      "first_scene_id": "blackthorn.s1.old-mill"
+    },
+    {
+      "id": "blackthorn.s2",
+      "name": "Scenario Two — Homecoming and the Night Attack",
+      "ordering": 2,
+      "first_scene_id": "blackthorn.s2.homecoming"
+    },
+    {
+      "id": "blackthorn.s3",
+      "name": "Scenario Three — Pursuit to the Temple of Nyarlathotep",
+      "ordering": 3,
+      "first_scene_id": "blackthorn.s3.pursuit"
+    },
+    {
+      "id": "blackthorn.s4",
+      "name": "Scenario Four — Final Confrontation",
+      "ordering": 4,
+      "first_scene_id": "blackthorn.s4.confrontation"
+    }
+  ],
+  "expected_pcs": { "min": 2, "max": 2 },
+  "content_rating_cap": "R",
+  "supports_date_night": true,
+  "shared_npcs": [
+    {
+      "id": "lookout-harold-longfingers",
+      "name": "Harold Longfingers",
+      "role": "Lookout (Mill kidnapper guard)",
+      "level": 2,
+      "class": "Bandit",
+      "alignment": "N(E)",
+      "hp": 11,
+      "max_hp": 11,
+      "ac": 12,
+      "init_bonus": 1,
+      "speed": 30,
+      "ac_proficiency": "padded armor",
+      "weapons": [
+        {
+          "name": "shortsword",
+          "to_hit": 2,
+          "damage": "1d6 dam",
+          "range": "5"
+        },
+        {
+          "name": "shortbow",
+          "to_hit": 3,
+          "damage": "1d6 dam",
+          "range": "80/320"
+        }
+      ],
+      "abilities": {
+        "str": 11,
+        "dex": 13,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 9
+      },
+      "skills": {
+        "stealth": 1,
+        "perception": 0,
+        "acrobatics": 1
+      },
+      "passive_perception": 10,
+      "tactics": "Fires first sight, then yells, 'Intruder!' Can kneel down for cover to add +2 AC. Stays in the front center of the roof — never moves from his reinforced spot. Only the top of his head can be seen from atop the paddlewheel.",
+      "roleplay_notes": "Bushy sideburns. Harold is not very bright and agrees with whatever is said. Wears padded armor. Carries 20 arrows.",
+      "treasure": "4cp, 5sp"
+    }
+  ]
+}

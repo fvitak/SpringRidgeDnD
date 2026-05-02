@@ -21,6 +21,17 @@ interface SessionInfo {
   scenario_id?: string | null
   date_night_mode?: boolean
   current_rating?: string
+  /**
+   * Adventure module id for sessions running on the v2 module-runner code
+   * path (e.g. Blackthorn → "blackthorn"). NULL for legacy WSC /
+   * random-encounter sessions, which stay on `/api/dm-action`.
+   *
+   * The host UI uses this value as the route-switch marker — see the
+   * `dmActionUrl` helper in NarrationScreen. This is the *only* source of
+   * truth on the client; the request body never carries `module_id` (the
+   * v2 route resolves it from `sessions.module_id` server-side).
+   */
+  module_id?: string | null
 }
 
 interface PlayerSlot {
@@ -521,6 +532,7 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
         scenario_id: scenarioId,
         date_night_mode: dateNightMode,
         current_rating: 'PG',
+        module_id: (data.module_id as string | null | undefined) ?? null,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -1314,6 +1326,16 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
 
   const sessionId = session.session_id
 
+  // Route-switch the DM action endpoint based on `session.module_id`.
+  //   NULL → legacy WSC route (`/api/dm-action`).
+  //   set  → module-runner route (`/api/dm-action-v2`).
+  //
+  // The body shape stays the same on both sides (`{ session_id, player_input,
+  // ... }`); the v2 route resolves `module_id` server-side from the session
+  // row, so we deliberately do NOT pass it from the client. Two sources of
+  // truth would drift.
+  const dmActionUrl = session.module_id ? '/api/dm-action-v2' : '/api/dm-action'
+
   function handleInsertName(name: string) {
     const input = inputRef.current
     if (!input) return
@@ -1408,15 +1430,39 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   }, [sessionId])
 
   // Auto-fire the scenario's opening kick on first turn.
-  // Keep these strings in sync with lib/scenarios/registry.ts.
+  //
+  // Two paths:
+  //   1. Module-runner sessions (v2, `session.module_id` set) — fire a
+  //      `[scene_start]` sentinel. The v2 route detects it + the empty
+  //      event log and sets `is_opening_turn: true` on the per-turn scene
+  //      context block; the AI delivers the scene script's opening
+  //      read_aloud and flips PC + visible-NPC discovery flags. The
+  //      sentinel is NOT echoed back to the player — the route strips it
+  //      before logging, and the AI's prompt tells it not to reference it.
+  //   2. Legacy WSC / random-encounter sessions (`module_id` NULL) — keep
+  //      the legacy text kick. These rely on the cached WSC system prompt
+  //      and have no scene script to reach for.
+  // Keep WSC kick strings in sync with lib/scenarios/registry.ts.
   useEffect(() => {
     if (loadingHistory) return
     if (log.length > 0 || isStreaming || isTyping) return
+
+    // Module-runner path — sentinel kick.
+    // Defensive fallback: if a session has scenario_id = 'blackthorn-clan'
+    // but module_id is NULL (pre-wiring backfill case), still treat it as
+    // module-runner. The v2 route also infers module_id from scenario_id
+    // when the column is null, so the [scene_start] kick lands.
+    const isModuleRunner =
+      Boolean(session.module_id) || session.scenario_id === 'blackthorn-clan'
+    if (isModuleRunner) {
+      handleSubmit('[scene_start]')
+      return
+    }
+
+    // Legacy WSC path — text kicks.
     const kicks: Record<string, string> = {
       'wild-sheep-chase':
         '[DM]: Begin the adventure. Set the scene at The Wooly Flagon tavern in Millhaven.',
-      'blackthorn-clan':
-        "[DM]: Open Scenario 1. Deliver the full opening passage as described in your Section 9 instructions — all six beats, from the cold morning through to Tarric at the mill window with his finger to his lips. Use your own voice but cover every beat before handing off to the players.",
       'random-encounter':
         '[DM]: Combat test mode. Invent a party of 4 adventurers — give them names and classes (Fighter, Rogue, Cleric, Wizard). They are ambushed on a forest road by 3 bandits and a bandit captain. Roll initiative for all enemies. Request initiative rolls from each player character. Begin combat.',
     }
@@ -1424,7 +1470,6 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     if (!kick) {
       if (session.name === 'The Wild Sheep Chase') kick = kicks['wild-sheep-chase']
       else if (session.name.startsWith('Random Encounter')) kick = kicks['random-encounter']
-      else if (session.name.includes('Blackthorn')) kick = kicks['blackthorn-clan']
     }
     if (kick) handleSubmit(kick)
   }, [loadingHistory, restartKey]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1511,7 +1556,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     setCurrentInput(effectiveInput)
 
     try {
-      const response = await fetch('/api/dm-action', {
+      const response = await fetch(dmActionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1714,7 +1759,7 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
       : `[${currentPlayer}] aside: Just a nudge — one sentence, narrator voice. What might ${currentPlayer} notice or want to consider right now? Don't decide for them.`
 
     try {
-      const res = await fetch('/api/dm-action', {
+      const res = await fetch(dmActionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

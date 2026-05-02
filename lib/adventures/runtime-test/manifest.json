@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "module_id": "runtime-test",
+  "name": "Runtime Test Module",
+  "source_attribution": "Synthetic test fixture for PIV-02b (Sprint 4.6). Not a published module.",
+  "scenarios": [
+    {
+      "id": "runtime-test.s1.escape",
+      "name": "Cell Block",
+      "ordering": 1,
+      "first_scene_id": "runtime-test.s1.cell-block"
+    }
+  ],
+  "expected_pcs": { "min": 1, "max": 2 },
+  "content_rating_cap": "PG-13",
+  "supports_date_night": false
+}

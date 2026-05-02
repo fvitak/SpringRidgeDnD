@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { upsertGameState } from '@/lib/db/game-state'
+import { applyApDelta, type ApHistoryEntry } from '@/lib/romance/engine'
+import type { DMOverride, SceneTransition } from '@/lib/schemas/dm-response'
 
 // ---------------------------------------------------------------------------
 // Field routing constants
@@ -41,25 +43,79 @@ const CHARACTER_FIELDS = new Set([
 // ---------------------------------------------------------------------------
 
 /**
+ * Optional sidecar payloads that some AI responses ride alongside
+ * `state_changes`. They live on the dmResponse but are routed through
+ * the same apply step so callers have a single integration point.
+ *
+ * - `attractionPointChanges` (PIV-04): per-character AP deltas, routed
+ *   into `character_romance` (`current_ap` + `ap_history`). Pure additive;
+ *   no existing call site is forced to pass this.
+ * - `dmOverrides` / `sceneTransition`: reserved for PIV-02b / PIV-06
+ *   wiring. Accepted for forward-compatibility so the v2 route can pass
+ *   them today; concrete handling lives in those stories.
+ */
+export interface ApplyExtras {
+  attractionPointChanges?: Array<{ character_id: string; delta: number; reason: string }>
+  /**
+   * Bidirectional rule-of-cool overrides. Logged via the `event_log.ai_response`
+   * JSONB blob (the route writes the full DMResponse there). No structured
+   * dedicated table for v1 — auditable by querying the JSONB. A future story
+   * can promote to a dedicated `dm_overrides_log` if drift surveillance needs it.
+   */
+  dmOverrides?: DMOverride[]
+  /**
+   * AI-signaled scene transition. The apply step writes
+   * `game_state.current_scene_id = sceneTransition.to_scene_id` so the next
+   * turn's per-turn scene context loads the new scene. Without this wire,
+   * the runtime can never advance — Zod previously stripped this field on
+   * parse, the v2 route's cast read undefined, and progression silently
+   * stalled at scene 1. Fixed 2026-05-01.
+   */
+  sceneTransition?: SceneTransition
+}
+
+/**
  * Processes an array of state_changes emitted by the AI DM response and
  * persists them to the appropriate Supabase tables.
  *
  * - scene / npc_positions / narrative_context → game_state row for this session
  * - hp / condition / inventory / spell_slots / drinks_consumed → characters row
  *   matched by character_name = entity within this session
+ * - extras.attractionPointChanges → character_romance.current_ap + ap_history
  *
  * Logs a warning for any unrecognised entity/field combo; never throws.
  */
 export async function applyStateChanges(
   sessionId: string,
-  stateChanges: Array<{ entity: string; field: string; value: unknown }>
+  stateChanges: Array<{ entity: string; field: string; value: unknown }>,
+  extras?: ApplyExtras,
 ): Promise<void> {
-  if (!stateChanges || stateChanges.length === 0) return
+  // Romance AP deltas are independent of state_changes, so route them first
+  // even when state_changes is empty.
+  if (extras?.attractionPointChanges && extras.attractionPointChanges.length > 0) {
+    await applyAttractionPointChanges(sessionId, extras.attractionPointChanges)
+  }
 
   // Collect game_state updates so we can batch into a single upsert
   const gameStateUpdates: Record<string, unknown> = {}
 
-  for (const change of stateChanges) {
+  // Scene transitions live alongside state_changes — when the AI signals one,
+  // we update game_state.current_scene_id so the next turn loads the new
+  // scene's context. Independent of stateChanges length.
+  if (extras?.sceneTransition) {
+    gameStateUpdates.current_scene_id = extras.sceneTransition.to_scene_id
+  }
+
+  // dmOverrides are intentionally not consumed structurally here — they ride
+  // the event_log.ai_response JSONB blob, which the v2 route already writes.
+  // Querying the event log gives auditable history. If drift surveillance
+  // needs a dedicated table, add it as a future story.
+
+  if ((!stateChanges || stateChanges.length === 0) && Object.keys(gameStateUpdates).length === 0) {
+    return
+  }
+
+  for (const change of stateChanges ?? []) {
     const { entity, field, value } = change
 
     // -----------------------------------------------------------------------
@@ -288,4 +344,133 @@ async function applyCharacterChange(
       `[applyStateChanges] Failed to update ${field} for character "${entity}": ${updateError.message}`
     )
   }
+}
+
+// ---------------------------------------------------------------------------
+// Romance AP deltas (PIV-04, Sprint 4.6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Apply each `attraction_point_changes[]` entry to the corresponding
+ * character_romance row. Resolves `character_id` against either:
+ *   - `characters.id` (UUID, exact match), or
+ *   - `characters.character_name` (case-insensitive, scoped to the session).
+ *
+ * Mutates `character_romance.current_ap` + appends to `ap_history` via the
+ * pure `applyApDelta` helper from `lib/romance/engine`. The numeric AP
+ * never leaves the server — only band labels do, via the GET endpoint.
+ *
+ * Auto-creates a `character_romance` row if one doesn't exist yet, so the
+ * AI doesn't need to know about the romance-intake flow to fire deltas.
+ */
+async function applyAttractionPointChanges(
+  sessionId: string,
+  changes: Array<{ character_id: string; delta: number; reason: string }>,
+): Promise<void> {
+  for (const change of changes) {
+    const characterId = await resolveRomanceCharacterId(sessionId, change.character_id)
+    if (!characterId) {
+      console.warn(
+        `[applyStateChanges] Unable to resolve AP target "${change.character_id}" in session "${sessionId}" — skipped.`,
+      )
+      continue
+    }
+
+    // Fetch (and create if missing) the romance row.
+    const { data: existing, error: fetchErr } = await supabase
+      .from('character_romance')
+      .select('id, current_ap, ap_history')
+      .eq('character_id', characterId)
+      .maybeSingle()
+    if (fetchErr) {
+      console.warn(
+        `[applyStateChanges] Failed to read character_romance for "${characterId}": ${fetchErr.message}`,
+      )
+      continue
+    }
+
+    let currentAp = 0
+    let history: ApHistoryEntry[] = []
+    if (existing) {
+      currentAp = typeof existing.current_ap === 'number' ? existing.current_ap : 0
+      history = Array.isArray(existing.ap_history) ? (existing.ap_history as ApHistoryEntry[]) : []
+    } else {
+      // Auto-create a minimal row so the delta has somewhere to land.
+      const { error: insertErr } = await supabase
+        .from('character_romance')
+        .insert({ character_id: characterId })
+      if (insertErr) {
+        console.warn(
+          `[applyStateChanges] Failed to create character_romance for "${characterId}": ${insertErr.message}`,
+        )
+        continue
+      }
+    }
+
+    const { newAp, history_entry } = applyApDelta(
+      currentAp,
+      change.delta,
+      change.reason,
+      'roleplay',
+    )
+
+    const { error: updateErr } = await supabase
+      .from('character_romance')
+      .update({
+        current_ap: newAp,
+        ap_history: [...history, history_entry],
+        updated_at: new Date().toISOString(),
+      })
+      .eq('character_id', characterId)
+    if (updateErr) {
+      console.warn(
+        `[applyStateChanges] Failed to update AP for "${characterId}": ${updateErr.message}`,
+      )
+    }
+  }
+}
+
+/**
+ * Resolve an AP-target reference — UUID, character name, or slot id — to
+ * a `characters.id` UUID for the romance row lookup.
+ */
+async function resolveRomanceCharacterId(
+  sessionId: string,
+  ref: string,
+): Promise<string | null> {
+  // 1. Direct UUID match (covers the AI emitting characters.id verbatim).
+  const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref)
+  if (looksLikeUuid) {
+    const { data } = await supabase
+      .from('characters')
+      .select('id')
+      .eq('session_id', sessionId)
+      .eq('id', ref)
+      .maybeSingle()
+    if (data?.id) return data.id
+  }
+
+  // 2. character_name (case-insensitive).
+  const { data: byName } = await supabase
+    .from('characters')
+    .select('id')
+    .eq('session_id', sessionId)
+    .ilike('character_name', ref)
+    .maybeSingle()
+  if (byName?.id) return byName.id
+
+  // 3. Slot id ("wynn"/"tarric" → slot 1/2 in Blackthorn's convention).
+  const slotByLabel: Record<string, number> = { wynn: 1, tarric: 2 }
+  const slot = slotByLabel[ref.toLowerCase()]
+  if (typeof slot === 'number') {
+    const { data: bySlot } = await supabase
+      .from('characters')
+      .select('id')
+      .eq('session_id', sessionId)
+      .eq('slot', slot)
+      .maybeSingle()
+    if (bySlot?.id) return bySlot.id
+  }
+
+  return null
 }

@@ -1,0 +1,885 @@
+{
+  "schema_version": 1,
+  "scene_id": "blackthorn.s1.old-mill",
+  "name": "The Old Mill",
+  "ordering": 1,
+
+  "_part_2_status": "Locations + NPCs + encounters + travel + recoverable items + post-combat raven beats added in ING-04 Part 2 (Sprint 4.7).",
+
+  "dm_setup_notes": "The DM should read both character backstories before beginning the scenario, so she is familiar with the character histories and the adventure's set up. Then read through Scenario One once or twice before playing, and remove the Scenario One handouts, maps, combat tracker, and tokens from the back of the book. (But be careful not to peek ahead.) The players should get a chance to read their character backstories and look over the character sheets before play begins. They also need to roll for First Impressions, choose Turn-ons, and roll for Pet Peeves. Anything not included in the module is at the discretion of the DM. Once the scene is set, the characters are free to respond as they like.",
+
+  "overview": "This scenario includes combat either in the mill or outside the mill to rescue Wynn, questioning survivors, gathering information, and travel time back to the manor.",
+
+  "narration_beats": [
+    {
+      "id": "open-cold-morning",
+      "type": "read_aloud",
+      "trigger": "scene_start",
+      "text": "It's a chilly autumn morning. The temperature is a few degrees above freezing. The sun rose half an hour ago, but shadows are still deep among the trees."
+    },
+    {
+      "id": "open-recap-tracking",
+      "type": "read_aloud",
+      "trigger": "scene_start",
+      "text": "After discovering Wynn missing, Tarric gathered supplies, the ransom note, and the ransom. Tarric and Briar, along with the groundskeeper Ayden Black and his son, Draven, started tracking Wynn before dawn. The fight with the bugbears and patching up Draven's injuries took forty-five minutes. Ayden and Draven have headed home. It's been two and a half hours since Tarric left Blackthorn Manor."
+    },
+    {
+      "id": "open-landscape",
+      "type": "read_aloud",
+      "trigger": "scene_start",
+      "text": "The landscape has been mostly wooded, with occasional meadows. Birds and animals have been plentiful. A light rain two days ago left the ground soft, so tracking has been easy. But the number of kidnappers has been hard to determine from their prints. Tarric has identified three sets of tracks, but there may be more. One must have been carrying Wynn since one set of footprints was very deep."
+    },
+    {
+      "id": "open-clearing",
+      "type": "read_aloud",
+      "trigger": "scene_start",
+      "text": "Tarric and Briar have been hearing the rush and burble of a stream off to their left for the last half hour. They came to the edge of a clearing and stopped amid the underbrush."
+    },
+    {
+      "id": "open-mill-revealed",
+      "type": "read_aloud",
+      "trigger": "scene_start",
+      "text": "Ahead an old grain mill sits next to a sparkling stream. The stones of the building glow golden in the morning sun. The roof slumps, giving it a tired and neglected look. The scene would be idyllic if not for the lookout on the roof, keeping watch with a short bow in hand."
+    },
+    {
+      "id": "open-stream-approach",
+      "type": "read_aloud",
+      "trigger": "scene_start",
+      "text": "Tarric watched for half an hour to determine no other guards were patrolling the area. Fortunately, the lookout was facing away from the stream — probably assuming no one would approach through the water in such cold weather. But it has been a dry fall, and the water level in the stream is low, well below the bank. Tarric and Briar snuck along the water's edge up to the mill. As luck would have it, the first window showed Tarric what he was looking for, Wynn."
+    },
+    {
+      "id": "open-wynn-bound",
+      "type": "read_aloud",
+      "trigger": "scene_start",
+      "text": "Wynn lies in a cot right below the window, still wearing sleeping attire. Wynn's hands are chained together and to the head of the cot. There's a gag in her mouth, and her feet are tied together and to the foot of the cot."
+    },
+    {
+      "id": "open-guard-revealed",
+      "type": "read_aloud",
+      "trigger": "scene_start",
+      "text": "Wynn's not alone in the room. A man sits in a chair near the interior door. He appears to be nodding off. Wynn looks up at Tarric who puts a finger to his lips for Wynn to be silent..."
+    },
+    {
+      "id": "open-prompt",
+      "type": "dm_voice",
+      "trigger": "scene_start",
+      "text": "So what does your character do?"
+    },
+
+    {
+      "id": "post-combat-raven",
+      "type": "read_aloud",
+      "trigger": "after_combat",
+      "text": "As Tarric and Wynn are getting to know one another, a raven lands nearby with a tiny bone scroll case attached to its leg. It caws loudly at Tarric and Wynn, trying to get their attention. Inside the scroll case is a handwritten note."
+    },
+    {
+      "id": "post-combat-wynn-state",
+      "type": "scene_description",
+      "trigger": "after_combat",
+      "text": "Wynn was hauled through a freezing forest and held in an unheated mill in pajamas, so she is chilled to the bone. Also, the potion used to knock her out left Wynn feeling groggy and ill. What they do about this — build a fire, get Wynn some food, take clothing, huddle for warmth — depends on Attraction Points and role-playing. Tarric might want to return to the manor as soon as possible to relieve the Thane's fear for his child. If they learn that the Thane was also supposed to be murdered or if Tarric tells Wynn about the attempt on Stirling's life, Wynn might want to hurry home. If Wynn and Tarric decide to go to the drop site and see who collects the ransom, no one will appear."
+    },
+    {
+      "id": "info-gathered-baseline",
+      "type": "dm_voice",
+      "trigger": "questioning_ruffian",
+      "text": "The following information can be found with a successful Charm Person spell or from any ruffian questioned with a successful DC 10 Persuasion check: They called themselves the Black Band. They've been hired to do the kidnappings. They don't know by who. It's all been arranged by raven messengers. Someone else plans the kidnappings. The ruffians are told where, when, and what to do. Someone else picks up the ransom. Then half the money is left for them in an old log. They are also told by the raven whether or not to kill the victim. Their old leader tried to trick their employer and was never heard from again. No one has disobeyed since. As long as they do as they're told, it is easy money and low risk. If Wynn and Tarric ask about the 3 children that were killed by the kidnappers, the kidnappers can show them where the graves are nearby."
+    },
+    {
+      "id": "info-gathered-dc20",
+      "type": "dm_voice",
+      "trigger": "questioning_ruffian_dc20",
+      "text": "On a DC 20 Persuasion check they can also learn: The Black Band were told to not only kidnap Wynn from the manor, but also to murder the Thane."
+    },
+    {
+      "id": "travel-storm-shelter",
+      "type": "read_aloud",
+      "trigger": "travel_storm_shelter",
+      "text": "On the way back, a flash storm passes through, bringing biting rain and hail. Wynn and Tarric take shelter under a spreading oak. There they find a skeleton with a broken leg bone wearing traveling gear. In a travel bag, they find a potion in a glass vial and a faded letter scrawled in what might be blood. Carrow's nurse is named Emily Peakoe. Wynn and Tarric realize that this might be Emily's father. The storm passes quickly, and Wynn and Tarric can move on. Unless they go to the ransom drop point, they should reach Blackthorn manor about mid-afternoon."
+    },
+    {
+      "id": "travel-departure",
+      "type": "read_aloud",
+      "trigger": "depart_for_manor",
+      "text": "As Wynn and Tarric head out, the sky has gone grey and angry clouds mass in the distance."
+    }
+  ],
+
+  "plot_points": [
+    {
+      "id": "wynn-must-escape",
+      "description": "Wynn must escape the mill — bound, gagged, and chained at scene start. The scenario does not end with her still in the cot. Whether by stealth, force, or rescue, Wynn leaves room 1.",
+      "mandatory": true,
+      "completed_when": "Wynn is freed from her bonds and out of the cot, on her way out of the mill or actively fighting alongside Tarric.",
+      "status_field": "plot.wynn_escaped"
+    },
+    {
+      "id": "tarric-locates-wynn",
+      "description": "Tarric must locate Wynn inside the mill. Per the opening read-aloud, the first window he checks reveals Wynn — this is treated as a fixed scene-start fact, not a roll.",
+      "mandatory": true,
+      "completed_when": "Tarric has line-of-sight to Wynn through the room 1 window (default true at scene_start per the opening narration).",
+      "status_field": "plot.tarric_located_wynn"
+    },
+    {
+      "id": "leader-confrontation",
+      "description": "The Black Band's leader Oberon Scott — wearing Wynn's stolen Ring of Regeneration and Amulet of Protection — must be confronted. Per the In for a Fight rule, even a clean stealth exit triggers a meeting with him within earshot of the mill. The PCs are not getting out of this fight.",
+      "mandatory": true,
+      "completed_when": "Oberon Scott has been engaged in combat, defeated, captured, or has fled. Wynn's items recovered (ring + amulet) is the tell.",
+      "status_field": "plot.leader_confronted"
+    },
+    {
+      "id": "raven-message-delivered",
+      "description": "After combat, a raven lands with a tiny bone scroll case carrying a handwritten note. This beat sets up Scenario Two — the AI must let the raven scene fire before transitioning out of the mill clearing.",
+      "mandatory": true,
+      "completed_when": "The raven beat has fired and the players have read or been read the note's contents.",
+      "status_field": "plot.raven_message_delivered"
+    },
+    {
+      "id": "return-to-manor",
+      "description": "For the adventure to continue, Tarric and Wynn must, at some point, choose to return to Blackthorn Manor.",
+      "mandatory": true,
+      "completed_when": "The PCs declare departure from the mill clearing, heading back toward Blackthorn Manor.",
+      "status_field": "plot.return_to_manor_chosen"
+    }
+  ],
+
+  "locations": [
+    {
+      "id": "exterior",
+      "name": "Exterior of the Mill",
+      "description": "The central section of the mill is two-story while the rooms on either side are one story. The roof is made of decaying wood shingle. The mill waterwheel's bottom rests in the water and the wheel is missing some of its paddles. There is a door to the loft at the top of the waterwheel. The riverbank comes within a foot of the back of the mill. The water level is about 3 feet down from the bank.",
+      "points_of_entry": [
+        {
+          "id": "main-doors",
+          "description": "Front main doors — iron banded wood, shut, not locked."
+        },
+        {
+          "id": "right-exterior-door",
+          "description": "Right exterior door — iron banded wood, locked."
+        },
+        {
+          "id": "front-lower-windows",
+          "description": "Two lower front windows — closed and locked."
+        },
+        {
+          "id": "loft-door",
+          "description": "Back (waterwheel side) loft door — wood, closed, not locked. Reached by climbing the paddlewheel."
+        },
+        {
+          "id": "window-room-3",
+          "description": "Back window into room 3 — open."
+        },
+        {
+          "id": "middle-windows",
+          "description": "Two middle back windows — closed, locked."
+        },
+        {
+          "id": "window-room-1",
+          "description": "Back window into room 1 (where Wynn is held) — slightly ajar. This is the window Tarric peers through in the opening narration."
+        }
+      ],
+      "dc_checks": [
+        {
+          "id": "climb-paddlewheel",
+          "skill": "athletics",
+          "dc": 10,
+          "context": "Climbing the paddlewheel from the stream level.",
+          "fail": "On a natural 1, 1d6 damage. On an Athletics miss by 4 or more no progress is made; miss by 5 or more means a fall into the stream for 1d3 damage and a DC 8 Perception check for the man on the roof and a DC 10 Perception check for those inside."
+        },
+        {
+          "id": "climb-paddlewheel-to-loft",
+          "skill": "athletics",
+          "dc": 8,
+          "context": "Climbing from the top of the paddlewheel across to the loft door.",
+          "fail": "On a natural 1, 1d8 damage. Same miss-by-4 / miss-by-5 rule as climbing the paddlewheel."
+        },
+        {
+          "id": "climb-paddlewheel-to-roof",
+          "skill": "athletics",
+          "dc": 15,
+          "context": "Climbing from the top of the paddlewheel up onto the mill roof.",
+          "fail": "On a natural 1, 1d10 damage. Same miss-by-4 / miss-by-5 rule as climbing the paddlewheel."
+        },
+        {
+          "id": "walk-stream-bank",
+          "skill": "athletics",
+          "dc": 8,
+          "context": "Walking along the stream bank behind the mill.",
+          "fail": "On a natural 1, 1d4 damage. Same miss-by-4 / miss-by-5 rule as the other climbs (a fall into the stream is 1d3 damage and triggers Perception checks for those above)."
+        },
+        {
+          "id": "shoot-lookout-killing",
+          "skill": "perception",
+          "dc": 10,
+          "context": "If Tarric (or anyone) shoots the lookout and he falls (kills him): DC 10 Perception check for room 2; DC 15 Perception check for room 1. This is the noise consequence, not the to-hit roll.",
+          "success": "On the room's success, the ruffians inside are alerted."
+        },
+        {
+          "id": "shoot-lookout-wounded",
+          "skill": "perception",
+          "dc": 6,
+          "context": "If the lookout is shot but not killed, he shouts to the others. DC 6 Perception check for room 2; DC 10 Perception check for room 1.",
+          "success": "On the room's success, the ruffians inside are alerted."
+        }
+      ],
+      "items": [
+        "Mill waterwheel (bottom in the stream, missing some paddles)",
+        "Stream bank (water 3 feet down from the bank)"
+      ],
+      "npcs_present": ["lookout-harold-longfingers"]
+    },
+
+    {
+      "id": "roof",
+      "name": "Roof",
+      "description": "The roof is made of dark wood shingles that are missing or broken in a few places. Moss and weeds grow here and there. The eaves look especially crumbly. The front center of the roof has been reinforced so that the lookout has a place to stand. The rest is treacherous, so the lookout never moves from his spot. The ridge of the roof runs east to west. Only the lookout's head is visible from atop the paddle wheel. Movement rule (opposed check, not a fixed DC): walking across the roof — character's Stealth -2 against Perception check for room 2 and -4 against Perception check for the lookout.",
+      "points_of_entry": [
+        {
+          "id": "paddlewheel-to-roof",
+          "description": "Climb up from the top of the paddlewheel onto the mill roof — DC 15 Athletics."
+        },
+        {
+          "id": "hatch-from-loft",
+          "description": "Hinged hatch cut in the roof, accessed via the rickety wooden ladder in the loft. Closed but not locked."
+        }
+      ],
+      "dc_checks": [
+        {
+          "id": "loud-noise-room-2",
+          "skill": "perception",
+          "dc": 10,
+          "context": "A loud noise on the roof — DC 10 Perception check for those in room 2.",
+          "success": "Room 2 is alerted to noise on the roof."
+        },
+        {
+          "id": "loud-noise-room-1",
+          "skill": "perception",
+          "dc": 15,
+          "context": "A loud noise on the roof — DC 15 Perception check for those in room 1.",
+          "success": "Room 1 is alerted to noise on the roof."
+        },
+        {
+          "id": "calling-for-help",
+          "skill": "perception",
+          "dc": 6,
+          "context": "Someone calling for help — DC 6 Perception check for whoever they are calling to."
+        },
+        {
+          "id": "fall-through-roof",
+          "skill": "athletics",
+          "dc": 10,
+          "context": "Falling through the roof — Athletics check DC 10. A miss by 5 or more means a fall into the mill: 1d6 damage if landing in the loft, 2d6 damage if landing in room 2.",
+          "fail": "Miss by 5 or more = fall into the mill. 1d6 damage if landing in the loft, 2d6 damage if landing in room 2."
+        }
+      ],
+      "items": [
+        "Reinforced 6-foot square area near the hatch (where Harold stands)",
+        "Decaying wood shingles, moss, weeds"
+      ],
+      "npcs_present": ["lookout-harold-longfingers"]
+    },
+
+    {
+      "id": "room-1",
+      "name": "Room 1 (Wynn's Holding Cell)",
+      "description": "The room is small and run down. Water stains on the walls show where the roof leaks. The room holds a cot where Wynn lies, a desk and a chair. An armed ruffian who is probably supposed to be watching Wynn lounges in the chair. He's in the process of nodding off. He wears glasses, padded armor and has a sword across his knees. He sits in the corner next to the door. While the outside walls are constructed of fieldstone, the inside wall and floor are rough timber. The cot carries a tick mattress stuffed with straw that smells of sweat and urine. On the desk are an unlit candle, a mandolin, a small chest, and several papers. Movement rule (opposed check): climbing through the window — -4 to the climber's Stealth check, contested against the guard's Passive Perception (currently 9 for Arnie).",
+      "points_of_entry": [
+        {
+          "id": "north-window",
+          "description": "North window — sits above the stream with only a foot of clearance along the bank. Chest high for someone outside and slightly ajar. Windows divide vertically in the center and open outward. PC must roll a DC 10 Athletics check to get in or out. A natural 1 falls in the stream for 1d4 damage plus a DC 6 Perception check for the guard."
+        },
+        {
+          "id": "west-window",
+          "description": "West window — closed and locked."
+        },
+        {
+          "id": "door-to-room-2",
+          "description": "Door to room 2 — wood, ajar."
+        }
+      ],
+      "dc_checks": [
+        {
+          "id": "loud-noise-in-room-1",
+          "skill": "perception",
+          "dc": 8,
+          "context": "A loud noise in room 1 — DC 8 Perception check for the roof lookout. DC 5 Perception for those in room 2."
+        },
+        {
+          "id": "loud-noise-in-room-1-room2",
+          "skill": "perception",
+          "dc": 5,
+          "context": "A loud noise in room 1 — DC 5 Perception for those in room 2."
+        },
+        {
+          "id": "wynn-gag-removal",
+          "skill": "dexterity",
+          "dc": 18,
+          "context": "Wynn's gag — once each round, Wynn can try to get the gag out of her mouth. She must succeed on a DC 18 Dexterity check.",
+          "success": "If she succeeds, she can cast spells that don't require using her hands."
+        }
+      ],
+      "items": [
+        "Cot - holds Wynn chained and gagged.",
+        "Chair - holds an armed ruffian (Arnie Wilkens).",
+        "Desk — holds papers containing song lyrics in progress, a mandolin, and a small chest.",
+        "Desk Drawer — holds 2 sets of women's clothing, 1 cloak.",
+        "Small chest — holds the key to Wynn's chains, mandolin strings, comb, brush, small mirror, ink, quill, and dice.",
+        "Unlit candle on the desk."
+      ],
+      "npcs_present": ["arnie-wilkens"]
+    },
+
+    {
+      "id": "room-2",
+      "name": "Room 2 (Main Mill Body)",
+      "description": "This is the main body of the mill. The room's center is taken up with the mill mechanism, the grinding stone and gears. Everything looks corroded and covered in cobwebs. There's a faint smell of moldy grain and rusty metal. Shelving along the back left wall holds spare parts and tools to keep a mill running. The opposite wall holds worktables and barrels also covered in cobwebs. A flight of wood stairs leads to the loft. An armed ruffian man and woman sit on barrels, playing dice on one of the worktables. They shout and swear and flirt with each roll of the dice. They each wear padded armor and two swords sit on the workbench.",
+      "points_of_entry": [
+        {
+          "id": "door-to-room-1",
+          "description": "Door to room 1 — ajar."
+        },
+        {
+          "id": "main-double-doors",
+          "description": "Main double doors — shut, not locked."
+        },
+        {
+          "id": "door-to-room-3",
+          "description": "Door to room 3 — shut, not locked."
+        },
+        {
+          "id": "front-windows",
+          "description": "Two front windows — locked."
+        },
+        {
+          "id": "back-windows",
+          "description": "Two back windows — closed but unlocked."
+        },
+        {
+          "id": "stairs-to-loft",
+          "description": "Stairs — leading up to loft."
+        }
+      ],
+      "dc_checks": [
+        {
+          "id": "loud-noise-or-call-room-2",
+          "skill": "perception",
+          "dc": 7,
+          "context": "A loud noise or call for help in room 2 — DC 7 Perception check for room 1 and the roof."
+        }
+      ],
+      "items": [
+        "Shelving — holds tools and supplies.",
+        "Workbenches — mostly bare.",
+        "Barrels — mostly empty. Some hold rotten grain.",
+        {
+          "id": "tool-large-wrench",
+          "name": "Large wrench",
+          "properties": {
+            "improvised_weapon": true,
+            "to_hit_modifier": -1,
+            "damage_modifier": "+1d4"
+          }
+        },
+        {
+          "id": "tool-iron-rod",
+          "name": "2ft iron rod",
+          "properties": {
+            "improvised_weapon": true,
+            "to_hit_modifier": 0,
+            "damage_modifier": "+1d4"
+          }
+        },
+        {
+          "id": "tool-wood-mallet",
+          "name": "Wood mallet",
+          "properties": {
+            "improvised_weapon": true,
+            "to_hit_modifier": -2,
+            "damage_modifier": "+1d2"
+          }
+        },
+        {
+          "id": "tool-wood-chisel",
+          "name": "Wood chisel",
+          "properties": {
+            "improvised_weapon": true,
+            "to_hit_modifier": 0,
+            "damage_modifier": "+1d4"
+          }
+        },
+        {
+          "id": "tool-wood-saw",
+          "name": "Wood saw",
+          "properties": {
+            "improvised_weapon": true,
+            "to_hit_modifier": -2,
+            "damage_modifier": "+1d3"
+          }
+        },
+        {
+          "id": "ring-of-regeneration",
+          "name": "Ring of Regeneration",
+          "properties": {
+            "magical": true,
+            "description": "Simple gold ring with a leaf motif. Wearer gets 1d6 hit points back every 10 minutes.",
+            "current_holder_npc_id": "oberon-scott",
+            "rightful_owner_character_role": "wynn",
+            "transfer_on_event": "oberon-scott defeated, captured, or fled and disarmed",
+            "regeneration_dice": "1d6",
+            "regeneration_interval_minutes": 10
+          }
+        },
+        {
+          "id": "amulet-of-protection",
+          "name": "Amulet of Protection",
+          "properties": {
+            "magical": true,
+            "description": "A gold pendant with the image of a turtle on a gold chain. +1 to AC and saves.",
+            "current_holder_npc_id": "oberon-scott",
+            "rightful_owner_character_role": "wynn",
+            "transfer_on_event": "oberon-scott defeated, captured, or fled and disarmed",
+            "ac_bonus": 1,
+            "save_bonus": 1
+          }
+        }
+      ],
+      "npcs_present": ["willard-hicks", "agatha-mills"]
+    },
+
+    {
+      "id": "loft",
+      "name": "Loft",
+      "description": "The loft is empty except for barrels standing in a corner and a pile of old hemp bags. Mice nest amid the bags and scurry underfoot. A door opens to the top of the outdoor waterwheel for maintenance. A rickety wooden ladder leads up to a hatch cut in the roof that opens with a hinge. The unstable floor gives a little under a person's weight and creaks. Windows look out to the front and back of the building. The loft is open except for a railing on the west side, and from the loft you can see the door to room 1. The roof has been reinforced recently in about a 6-foot square area with fresh wood around the hatch to give the lookout on the roof a safe place to stand. Movement rule (opposed check): walking across the floor or stairs — PC's Stealth check -2, contested against the Perception check for room 2.",
+      "points_of_entry": [
+        {
+          "id": "stairs-down-to-room-2",
+          "description": "Stairs — leading down to room 2."
+        },
+        {
+          "id": "loft-door-to-waterwheel",
+          "description": "Loft door — opens to the top of the mill wheel for maintenance. Closed but not locked."
+        },
+        {
+          "id": "back-window",
+          "description": "Back window — shut but not locked."
+        },
+        {
+          "id": "front-window",
+          "description": "Front window — locked."
+        },
+        {
+          "id": "stairs-up-to-hatch",
+          "description": "Stairs (rickety wooden ladder) — leading up to the hatch to the roof."
+        },
+        {
+          "id": "hatch-to-roof",
+          "description": "Hatch — hinged. Closed but not locked."
+        },
+        {
+          "id": "loft-open-west",
+          "description": "Loft is open on the west side to room 2 (railing along that side)."
+        }
+      ],
+      "dc_checks": [],
+      "items": [
+        "Barrels — mostly empty. Some hold rotten grain.",
+        "Old hemp bags — mice infested."
+      ],
+      "npcs_present": []
+    },
+
+    {
+      "id": "room-3",
+      "name": "Room 3 (Sleeping Quarters)",
+      "description": "Whatever was in this room originally has been thrown out except for one nicely constructed cot and a wood-burning stove. Four roughly hewn, ricketty bunk beds have been added allowing the room to sleep nine people. The room smells like a bunch of unwashed men live in it. At the base of two of the beds are small chests, most likely of the belongings of the people who sleep in the beds.",
+      "points_of_entry": [
+        {
+          "id": "door-to-room-2",
+          "description": "Door to room 2 — shut, not locked."
+        },
+        {
+          "id": "exterior-door",
+          "description": "Exterior door — iron banded wood, locked. Weeds have overgrown the outside so if unlocked it requires a DC 8 Strength check to push it open."
+        },
+        {
+          "id": "back-window",
+          "description": "Back window — open."
+        }
+      ],
+      "dc_checks": [
+        {
+          "id": "force-overgrown-door",
+          "skill": "strength",
+          "dc": 8,
+          "context": "Pushing open the weed-overgrown exterior door once unlocked.",
+          "fail": "Door does not budge; the weeds hold it shut."
+        }
+      ],
+      "items": [
+        "4 rickety bunk beds.",
+        "1 well-wrought cot.",
+        "Wood-burning stove.",
+        "Chest 1: 2 sets of clothing, a pipe & tobacco, a lock of hair tied with ribbon, a comb and brush, a straight razor & mirror.",
+        "Chest 2: 2 sets of clothing, a sailor's hat, a small sketchbook & charcoal, a string of wooden beads, a straight razor & mirror."
+      ],
+      "npcs_present": []
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "arnie-wilkens",
+      "name": "Arnie Wilkens",
+      "role": "Wynn's Guard (Mill kidnapper, Room 1)",
+      "level": 2,
+      "class": "Bandit",
+      "alignment": "N(E)",
+      "hp": 11,
+      "max_hp": 11,
+      "ac": 12,
+      "init_bonus": 1,
+      "speed": 30,
+      "ac_proficiency": "padded armor",
+      "weapons": [
+        {
+          "name": "shortsword",
+          "to_hit": 3,
+          "damage": "1d6+1 dam",
+          "range": "5"
+        }
+      ],
+      "abilities": {
+        "str": 12,
+        "dex": 12,
+        "con": 10,
+        "int": 10,
+        "wis": 9,
+        "cha": 10
+      },
+      "skills": {
+        "stealth": 1,
+        "perception": -1,
+        "acrobatics": 1
+      },
+      "passive_perception": 9,
+      "tactics": "The ruffians simply charge into combat thinking their numbers will overcome.",
+      "roleplay_notes": "Tall boots, sword on knees, nodding off in room 1. Wears glasses and padded armor. Nasally voice. Arnie is in love with Agatha and jealous of Willard who are currently in room 2.",
+      "treasure": "Share of 47cp, 18sp split with Hicks."
+    },
+    {
+      "id": "willard-hicks",
+      "name": "Willard Hicks",
+      "role": "Ruffian Dice Player (Room 2)",
+      "level": 2,
+      "class": "Bandit",
+      "alignment": "N(E)",
+      "hp": 13,
+      "max_hp": 13,
+      "ac": 12,
+      "init_bonus": 1,
+      "speed": 30,
+      "ac_proficiency": "padded armor",
+      "weapons": [
+        {
+          "name": "shortsword",
+          "to_hit": 3,
+          "damage": "1d6+1 dam",
+          "range": "5"
+        }
+      ],
+      "abilities": {
+        "str": 12,
+        "dex": 12,
+        "con": 10,
+        "int": 10,
+        "wis": 9,
+        "cha": 10
+      },
+      "skills": {
+        "stealth": 1,
+        "perception": -1,
+        "acrobatics": 1
+      },
+      "passive_perception": 9,
+      "tactics": "The ruffians simply charge into combat thinking their numbers will overcome.",
+      "roleplay_notes": "Full beard and two missing fingers on his left hand. Wears padded armor and his short sword sits on the workbench before him. His voice is gruff. He and Agatha are an item. He keeps suggesting they play for kisses or other favors but Agatha insists they play for money.",
+      "treasure": "Share of 47cp, 18sp split with Wilkens."
+    },
+    {
+      "id": "agatha-mills",
+      "name": "Agatha Mills",
+      "role": "Woman Ruffian / Bard (Room 2)",
+      "level": 2,
+      "class": "Bard",
+      "alignment": "N(E)",
+      "hp": 12,
+      "max_hp": 12,
+      "ac": 12,
+      "init_bonus": 5,
+      "speed": 30,
+      "ac_proficiency": "padded armor",
+      "weapons": [
+        {
+          "name": "shortsword",
+          "to_hit": 1,
+          "damage": "1d6-1 dam",
+          "range": "5"
+        }
+      ],
+      "abilities": {
+        "str": 9,
+        "dex": 12,
+        "con": 10,
+        "int": 14,
+        "wis": 8,
+        "cha": 15
+      },
+      "skills": {
+        "stealth": 3,
+        "perception": 1,
+        "performance": 4
+      },
+      "passive_perception": 11,
+      "spells": [
+        {
+          "name": "Light",
+          "level": 0,
+          "effect": "Object shines like a torch. Spell wording: 'Lose the night, give me sight. Shine a light; make it bright.'"
+        },
+        {
+          "name": "Mage Hand",
+          "level": 0,
+          "effect": "10 lb. telekinesis. Spell wording: 'Lift and twist, turn, and tumble. Do my will, however humble.'"
+        },
+        {
+          "name": "True Strike",
+          "level": 0,
+          "effect": "Gain advantage against 1 opponent for 1 round. Spell wording: 'Guide my hand to hit the spot. Improve my aim in battle hot.'"
+        },
+        {
+          "name": "Detect Magic",
+          "level": 1,
+          "uses_per_day": 3,
+          "effect": "Detects spells and magic items within 30 ft."
+        },
+        {
+          "name": "Cure Wounds",
+          "level": 1,
+          "uses_per_day": 3,
+          "effect": "Cures 1d8+2 damage."
+        },
+        {
+          "name": "Sleep",
+          "level": 1,
+          "uses_per_day": 3,
+          "effect": "Puts 4 HD of creatures into magical slumber. (Already cast on Wynn — unavailable this scene.)"
+        }
+      ],
+      "tactics": "She uses True Strike before engaging with her sword. Cantrips have no per-day limit; Sleep is already used up. Spell DC 12.",
+      "roleplay_notes": "She's pretty but shows lots of mileage. Wears padded armor and her short sword lays on the workbench. Agatha is into Willard but is teasing him. And she's pretty sure she can beat him.",
+      "treasure": "Share of room 2 ruffians' purse."
+    },
+    {
+      "id": "oberon-scott",
+      "name": "Oberon Scott",
+      "role": "Ruffian Leader of the Black Band",
+      "level": 3,
+      "class": "Bandit",
+      "alignment": "N(E)",
+      "hp": 23,
+      "max_hp": 23,
+      "ac": 14,
+      "init_bonus": 2,
+      "speed": 30,
+      "ac_proficiency": "padded armor (+1 AC from Amulet of Protection)",
+      "weapons": [
+        {
+          "name": "longsword",
+          "to_hit": 3,
+          "damage": "1d8+1 dam",
+          "range": "5"
+        },
+        {
+          "name": "throwing dagger",
+          "to_hit": 4,
+          "damage": "1d4+1 dam",
+          "range": "20/60"
+        }
+      ],
+      "abilities": {
+        "str": 12,
+        "dex": 14,
+        "con": 10,
+        "int": 11,
+        "wis": 10,
+        "cha": 12
+      },
+      "skills": {
+        "stealth": 2,
+        "perception": 0,
+        "athletics": 1
+      },
+      "passive_perception": 10,
+      "tactics": "Throws dagger before charging ahead with the long sword. Ring of Regeneration heals him 1d6 hit points every 10 minutes. Amulet of Protection grants +1 to AC and +1 on all saves.",
+      "roleplay_notes": "Scarred from forehead to chin from past battles, looks happy to fight. Wields a throwing dagger and a long sword and wears Wynn's stolen ring and amulet.",
+      "treasure": "6cp, 34sp, 3gp. He carries Wynn's Ring of Regeneration and Amulet of Protection — see the recoverable items in scene state for transfer mechanics on defeat."
+    },
+    {
+      "id": "scotty-thorpe",
+      "name": "Scotty Thorpe",
+      "role": "Fishing Ruffian (Reinforcement)",
+      "level": 1,
+      "class": "Bandit",
+      "alignment": "N(E)",
+      "hp": 5,
+      "max_hp": 5,
+      "ac": 12,
+      "init_bonus": 1,
+      "speed": 30,
+      "ac_proficiency": "padded armor",
+      "weapons": [
+        {
+          "name": "shortsword",
+          "to_hit": 3,
+          "damage": "1d6+1 dam",
+          "range": "5"
+        }
+      ],
+      "abilities": {
+        "str": 12,
+        "dex": 12,
+        "con": 10,
+        "int": 10,
+        "wis": 9,
+        "cha": 10
+      },
+      "skills": {
+        "stealth": 1,
+        "perception": -1,
+        "acrobatics": 1
+      },
+      "passive_perception": 9,
+      "tactics": "The ruffians simply charge into combat thinking their numbers will overcome.",
+      "roleplay_notes": "Looks too young for this but is anxious to prove himself. Wears padded armor.",
+      "treasure": "Share of 30cp, 8sp split with O'Dell."
+    },
+    {
+      "id": "oscar-odell",
+      "name": "Oscar O'Dell",
+      "role": "Fishing Ruffian (Reinforcement)",
+      "level": 1,
+      "class": "Bandit",
+      "alignment": "N(E)",
+      "hp": 7,
+      "max_hp": 7,
+      "ac": 12,
+      "init_bonus": 1,
+      "speed": 30,
+      "ac_proficiency": "padded armor",
+      "weapons": [
+        {
+          "name": "shortsword",
+          "to_hit": 3,
+          "damage": "1d6+1 dam",
+          "range": "5"
+        }
+      ],
+      "abilities": {
+        "str": 12,
+        "dex": 12,
+        "con": 10,
+        "int": 10,
+        "wis": 9,
+        "cha": 10
+      },
+      "skills": {
+        "stealth": 1,
+        "perception": -1,
+        "acrobatics": 1
+      },
+      "passive_perception": 9,
+      "tactics": "The ruffians simply charge into combat thinking their numbers will overcome.",
+      "roleplay_notes": "Oscar looks like he enjoys torturing small animals. Wears padded armor.",
+      "treasure": "Share of 30cp, 8sp split with Thorpe."
+    }
+  ],
+
+  "encounters": [
+    {
+      "id": "in-mill-combat",
+      "trigger": "Combat erupts inside the mill — most commonly via shooting or alerting Harold the lookout, climbing in a window and being noticed, or being heard while creeping through the rooms.",
+      "participants": [
+        "lookout-harold-longfingers",
+        "arnie-wilkens",
+        "willard-hicks",
+        "agatha-mills",
+        "oberon-scott",
+        "scotty-thorpe",
+        "oscar-odell"
+      ]
+    },
+    {
+      "id": "outside-mill-combat",
+      "trigger": "Wynn and Tarric sneak out of the mill without provoking a fight, then run into the three returning ruffians (Oberon + Thorpe + O'Dell) within 60 feet of the mill. The ruffians attack immediately. The lookout starts shooting, shouts, and stomps on the roof to alert the inside ruffians, who join the battle in 3 rounds.",
+      "participants": [
+        "oberon-scott",
+        "scotty-thorpe",
+        "oscar-odell",
+        "lookout-harold-longfingers",
+        "arnie-wilkens",
+        "willard-hicks",
+        "agatha-mills"
+      ]
+    },
+    {
+      "id": "reinforcement-trigger-inside",
+      "trigger": "When the combined hit points of the remaining inside ruffians reach 10, three more ruffians (Oberon Scott + Scotty Thorpe + Oscar O'Dell) approach the mill. The PCs roll Perception to notice the approach: Briar DC 12, Tarric and Wynn DC 15 (if not too distracted). If the battle is ongoing when reinforcements arrive, the new ruffians roll DC 8 Perception to realize there is a disturbance inside; on success they rush through the main door, weapons drawn, and get a free attack if Wynn and Tarric have not heard them or been alerted by Briar — otherwise add them to initiative. If the battle inside has ended and the lookout is missing, the returning ruffians roll DC 10 Perception to notice; on success they creep forward weapons ready and get a free attack unless Briar / Wynn / Tarric heard them; on failure they enter unaware and those inside get a DC 8 Perception check for a free attack on them.",
+      "participants": [
+        "oberon-scott",
+        "scotty-thorpe",
+        "oscar-odell"
+      ]
+    }
+  ],
+
+  "travel_encounters": [
+    {
+      "id": "wolf-companion",
+      "roll": "d4=1",
+      "description": "Partway home Briar stops, howls, and runs into the woods. They find Briar playing and nuzzling with a wolf of the opposite sex. They act like old flames. Tarric thinks they may have had cubs before."
+    },
+    {
+      "id": "trillium-bluebottom",
+      "roll": "d4=2",
+      "description": "A pixie named Trillium Bluebottom appears in a tree. He says that evil has come to the area, but he doesn't know any more than vague rumors. The forest creatures want humans to deal with it. He also teases them about being a cute couple. The more they ask questions or deny being a couple, the more he teases until he disappears."
+    },
+    {
+      "id": "wickham-graves",
+      "roll": "d4=3",
+      "description": "In a patch of wildflowers, they find an old tombstone and two graves. The headstone reads: 'Tobias and Yennifer Wickham. Forever together. Celebrating a life well lived and well loved.' If they investigate, there is a cute, run-down cottage nearby."
+    },
+    {
+      "id": "doe-trapped",
+      "roll": "d4=4",
+      "description": "The PCs come across a doe with her foot caught in a crack in a hollow log. A buck won't leave her side. Wynn and Tarric will have to work together to distract the protective buck if they want to save her."
+    },
+    {
+      "id": "shelter-from-storm",
+      "roll": "guaranteed",
+      "description": "On the way back, a flash storm passes through, bringing biting rain and hail. Wynn and Tarric take shelter under a spreading oak. There they find a skeleton with a broken leg bone wearing traveling gear. In a travel bag, they find a potion in a glass vial and a faded letter scrawled in what might be blood. Carrow's nurse is named Emily Peakoe. Wynn and Tarric realize that this might be Emily's father. The storm passes quickly, and Wynn and Tarric can move on. Unless they go to the ransom drop point, they should reach Blackthorn manor about mid-afternoon. Note: this is the only travel beat the PDF presents as guaranteed (the d4 entries are 'choose your favorite or roll'); modeled with roll='guaranteed' and a parallel narration_beat 'travel-storm-shelter' for the read-aloud."
+    }
+  ],
+
+  "scene_exit_conditions": [
+    {
+      "id": "depart-for-manor",
+      "description": "Once Wynn is freed, the leader confrontation has resolved (combat or capture), the raven's message has been delivered, and the PCs choose to leave the mill clearing, the scene ends and travel to Blackthorn Manor begins. Per the PDF: 'For the adventure to continue, Tarric and Wynn must, at some point, choose to return to the Manor.'",
+      "leads_to_scene_id": "blackthorn.s2.homecoming",
+      "trigger": "plot.wynn_escaped === true && plot.leader_confronted === true && plot.raven_message_delivered === true && PCs declare departure from the mill"
+    },
+    {
+      "id": "scout-ransom-drop",
+      "description": "Optional: Wynn and Tarric decide to go to the ransom drop site to see who collects the ransom. Per the PDF (line 999), no one will appear — this is a dead-end branch that loops back to the depart-for-manor exit when they give up the stake-out.",
+      "trigger": "Players declare they want to scout the drop point. AI narrates the wait, no one appears, and then prompts them back toward the manor."
+    }
+  ]
+}

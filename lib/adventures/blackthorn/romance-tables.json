@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "module_id": "blackthorn",
+
+  "turn_ons": [
+    { "roll": 1,  "name": "Being rescued",            "effect_text": "When the partner gives aid",                                                "dice": "d6",  "incompatible_with": [1] },
+    { "roll": 2,  "name": "Someone good with animals", "effect_text": "Partner's positive interaction with animals",                                "dice": "d8",  "incompatible_with": [2] },
+    { "roll": 3,  "name": "Someone with a sense of humor", "effect_text": "Partner makes the character laugh",                                      "dice": "d10", "incompatible_with": [] },
+    { "roll": 4,  "name": "A good body",              "effect_text": "Partner's successful physical skill check",                                  "dice": "d6",  "incompatible_with": [] },
+    { "roll": 5,  "name": "Someone observant",        "effect_text": "Partner's successful Insight or Perception check",                            "dice": "d6",  "incompatible_with": [] },
+    { "roll": 6,  "name": "Someone who takes charge", "effect_text": "Partner makes a plan",                                                        "dice": "d8",  "incompatible_with": [] },
+    { "roll": 7,  "name": "Dominant people",          "effect_text": "Partner's successful Deception, Intimidation, or Strength check",             "dice": "d8",  "incompatible_with": [] },
+    { "roll": 8,  "name": "A sharp mind",             "effect_text": "Partner's successful Intelligence or Concentration check",                    "dice": "d8",  "incompatible_with": [] },
+    { "roll": 9,  "name": "Someone who is wise",      "effect_text": "Partner's successful Insight, Medicine, Perception, or Survival check",       "dice": "d6",  "incompatible_with": [] },
+    { "roll": 10, "name": "Someone who is hot-blooded", "effect_text": "Partner rolls highest Initiative",                                          "dice": "d6",  "incompatible_with": [] },
+    { "roll": 11, "name": "Someone who is cautious",  "effect_text": "Partner's successful Perception or Stealth check",                            "dice": "d6",  "incompatible_with": [] },
+    { "roll": 12, "name": "A good caretaker",         "effect_text": "Partner's successful Medicine check or providing food/shelter",                "dice": "d8",  "incompatible_with": [12] },
+    { "roll": 13, "name": "Compliments",              "effect_text": "Partner pays a compliment",                                                   "dice": "d8",  "incompatible_with": [13] },
+    { "roll": 14, "name": "Someone who is competent", "effect_text": "Partner's successful skill check",                                            "dice": "d4",  "incompatible_with": [14] },
+    { "roll": 15, "name": "Someone magical",          "effect_text": "Partner's successful spell cast or Arcana check",                             "dice": "d6",  "incompatible_with": [15] },
+    { "roll": 16, "name": "Someone good in a fight", "effect_text": "Partner scores a critical hit",                                                "dice": "d6",  "incompatible_with": [16] },
+    { "roll": 17, "name": "A peacemaker",             "effect_text": "Partner's successful Insight or Persuasion check",                            "dice": "d6",  "incompatible_with": [] },
+    { "roll": 18, "name": "Someone with a strong will", "effect_text": "Partner's successful Wisdom save",                                          "dice": "d8",  "incompatible_with": [18] },
+    { "roll": 19, "name": "Good reflexes",            "effect_text": "Partner's successful Dexterity save",                                         "dice": "d8",  "incompatible_with": [19] },
+    { "roll": 20, "name": "Someone with fortitude",   "effect_text": "Partner's successful Constitution save",                                      "dice": "d8",  "incompatible_with": [20] }
+  ],
+
+  "pet_peeves": [
+    { "roll": 1,  "name": "Being treated as weak or helpless", "effect_text": "Partner gives aid in a coddling way",                                "dice": "d4",  "incompatible_with": [1] },
+    { "roll": 2,  "name": "Tree huggers",            "effect_text": "Partner's positive interaction with animals (Wynn only)",                       "dice": "d4",  "incompatible_with": [2] },
+    { "roll": 3,  "name": "A know-it-all",           "effect_text": "Partner's successful Intelligence check delivered smugly",                      "dice": "d6",  "incompatible_with": [] },
+    { "roll": 4,  "name": "Someone clumsy",          "effect_text": "Partner fails a physical skill check by 5 or more",                             "dice": "d4",  "incompatible_with": [] },
+    { "roll": 5,  "name": "Someone oblivious",       "effect_text": "Partner fails Insight or Perception by 5 or more",                              "dice": "d6",  "incompatible_with": [] },
+    { "roll": 6,  "name": "Followers",               "effect_text": "Partner asks 'what should we do next?'",                                        "dice": "d6",  "incompatible_with": [] },
+    { "roll": 7,  "name": "Someone who thinks they're tough but isn't", "effect_text": "Partner fails Deception, Intimidation, or Strength by 5+",  "dice": "d6",  "incompatible_with": [] },
+    { "roll": 8,  "name": "Idiots",                  "effect_text": "Partner fails Intelligence or Concentration by 5 or more",                      "dice": "d6",  "incompatible_with": [] },
+    { "roll": 9,  "name": "Fools",                   "effect_text": "Partner fails Medicine, Insight, Perception, or Survival by 5 or more",         "dice": "d6",  "incompatible_with": [] },
+    { "roll": 10, "name": "Procrastinators",         "effect_text": "Partner rolls lowest Initiative",                                               "dice": "d6",  "incompatible_with": [] },
+    { "roll": 11, "name": "A bumbler",               "effect_text": "Partner fails Acrobatics or Stealth by 5 or more",                              "dice": "d4",  "incompatible_with": [] },
+    { "roll": 12, "name": "An inept nursemaid",      "effect_text": "Partner's failed Medicine check or poor food/shelter",                          "dice": "d6",  "incompatible_with": [12] },
+    { "roll": 13, "name": "Being fawned over",       "effect_text": "Partner pays a compliment",                                                     "dice": "d4",  "incompatible_with": [13] },
+    { "roll": 14, "name": "Someone who is incompetent", "effect_text": "Partner fails a non-physical skill check by 5 or more",                      "dice": "d3",  "incompatible_with": [14] },
+    { "roll": 15, "name": "A failed magician",       "effect_text": "Partner's failed spell cast or Arcana check by 5+ (Tarric only)",               "dice": "d4",  "incompatible_with": [15] },
+    { "roll": 16, "name": "Show-offs",               "effect_text": "Partner scores a critical hit",                                                 "dice": "d4",  "incompatible_with": [16] },
+    { "roll": 17, "name": "Someone who makes matters worse", "effect_text": "Partner fails Insight or Persuasion by 5 or more",                      "dice": "d6",  "incompatible_with": [] },
+    { "roll": 18, "name": "Someone with no will power", "effect_text": "Partner fails a Wisdom save",                                                "dice": "d6",  "incompatible_with": [18] },
+    { "roll": 19, "name": "Poor reflexes",           "effect_text": "Partner fails a Dexterity save",                                                "dice": "d6",  "incompatible_with": [19] },
+    { "roll": 20, "name": "Someone with no fortitude", "effect_text": "Partner fails a Constitution save",                                           "dice": "d6",  "incompatible_with": [20] }
+  ],
+
+  "first_impressions_table": [
+    {
+      "viewer_pc_id": "wynn",
+      "viewed_pc_id": "tarric",
+      "no_roll_bonus": 6,
+      "charisma_modifier_source": "pc_b",
+      "preconceptions": [
+        {
+          "id": "wynn-of-tarric.kidnap-handling",
+          "d20_range": [1, 6],
+          "idea_text": "Tarric could have done more to catch the kidnappers.",
+          "ap_modifier": { "direction": "subtract", "dice": "d6" }
+        },
+        {
+          "id": "wynn-of-tarric.kidnap-handling.neutral",
+          "d20_range": [7, 13],
+          "idea_text": "Tarric did his job and was helpful to the family.",
+          "ap_modifier": null
+        },
+        {
+          "id": "wynn-of-tarric.kidnap-handling.positive",
+          "d20_range": [14, 20],
+          "idea_text": "Tarric was amazing in a difficult situation.",
+          "ap_modifier": { "direction": "add", "dice": "d10" }
+        },
+        {
+          "id": "wynn-of-tarric.rangers.negative",
+          "d20_range": [1, 6],
+          "idea_text": "Rangers are a dirty, smelly lot.",
+          "ap_modifier": { "direction": "subtract", "dice": "d6" }
+        },
+        {
+          "id": "wynn-of-tarric.rangers.neutral",
+          "d20_range": [7, 13],
+          "idea_text": "Rangers seem okay.",
+          "ap_modifier": null
+        },
+        {
+          "id": "wynn-of-tarric.rangers.positive",
+          "d20_range": [14, 20],
+          "idea_text": "Rangers are wild and natural — cool!",
+          "ap_modifier": { "direction": "add", "dice": "d10" }
+        },
+        {
+          "id": "wynn-of-tarric.employee.negative",
+          "d20_range": [1, 6],
+          "idea_text": "Tarric may be taking advantage of the family's generosity.",
+          "ap_modifier": { "direction": "subtract", "dice": "d6" }
+        },
+        {
+          "id": "wynn-of-tarric.employee.neutral",
+          "d20_range": [7, 13],
+          "idea_text": "Tarric has been a trusted employee.",
+          "ap_modifier": null
+        },
+        {
+          "id": "wynn-of-tarric.employee.positive",
+          "d20_range": [14, 20],
+          "idea_text": "Tarric has become a good friend and confidant to the family.",
+          "ap_modifier": { "direction": "add", "dice": "d10" }
+        }
+      ]
+    },
+    {
+      "viewer_pc_id": "tarric",
+      "viewed_pc_id": "wynn",
+      "no_roll_bonus": 6,
+      "charisma_modifier_source": "pc_b",
+      "preconceptions": [
+        {
+          "id": "tarric-of-wynn.family.negative",
+          "d20_range": [1, 6],
+          "idea_text": "Wynn abandoned her family and should have come home sooner.",
+          "ap_modifier": { "direction": "subtract", "dice": "d6" }
+        },
+        {
+          "id": "tarric-of-wynn.family.neutral",
+          "d20_range": [7, 13],
+          "idea_text": "Wynn was sent away and probably loves her family.",
+          "ap_modifier": null
+        },
+        {
+          "id": "tarric-of-wynn.family.positive",
+          "d20_range": [14, 20],
+          "idea_text": "Wynn was an obedient and loving child.",
+          "ap_modifier": { "direction": "add", "dice": "d10" }
+        },
+        {
+          "id": "tarric-of-wynn.rich-kids.negative",
+          "d20_range": [1, 6],
+          "idea_text": "The children of the rich and powerful are usually spoiled.",
+          "ap_modifier": { "direction": "subtract", "dice": "d6" }
+        },
+        {
+          "id": "tarric-of-wynn.rich-kids.neutral",
+          "d20_range": [7, 13],
+          "idea_text": "Children are the same everywhere.",
+          "ap_modifier": null
+        },
+        {
+          "id": "tarric-of-wynn.rich-kids.positive",
+          "d20_range": [14, 20],
+          "idea_text": "Stirling loves Wynn and is so happy she's home.",
+          "ap_modifier": { "direction": "add", "dice": "d10" }
+        },
+        {
+          "id": "tarric-of-wynn.sorcerers.negative",
+          "d20_range": [1, 6],
+          "idea_text": "Sorcerers are a tricky lot, often untrustworthy.",
+          "ap_modifier": { "direction": "subtract", "dice": "d6" }
+        },
+        {
+          "id": "tarric-of-wynn.sorcerers.neutral",
+          "d20_range": [7, 13],
+          "idea_text": "Sorcerers are city folk and don't matter in the wilds.",
+          "ap_modifier": null
+        },
+        {
+          "id": "tarric-of-wynn.sorcerers.positive",
+          "d20_range": [14, 20],
+          "idea_text": "Sorcerers tend to be wild and unpredictable. Cool!",
+          "ap_modifier": { "direction": "add", "dice": "d10" }
+        }
+      ]
+    }
+  ],
+
+  "ap_bands": [
+    { "min": -999, "max": -30, "label": "exhausted",     "behaviour_description": "So ready to be done with this." },
+    { "min": -30,  "max": -21, "label": "cold",          "behaviour_description": "Cold, superior." },
+    { "min": -20,  "max": -11, "label": "dismissive",    "behaviour_description": "Dismissive, glib, snarky." },
+    { "min": -10,  "max": -6,  "label": "distant",       "behaviour_description": "Distant, cool, aloof." },
+    { "min": -5,   "max": 5,   "label": "polite",        "behaviour_description": "Polite, deferential, professional." },
+    { "min": 6,    "max": 10,  "label": "shy",           "behaviour_description": "Shy, flustered, nervous." },
+    { "min": 11,   "max": 20,  "label": "flirtatious",   "behaviour_description": "Flirtatious, engaging, playful." },
+    { "min": 21,   "max": 30,  "label": "smitten",       "behaviour_description": "Smitten, infatuated, totally into them." },
+    { "min": 31,   "max": 999, "label": "committed",     "behaviour_description": "Crazy about, committed to." }
+  ],
+
+  "combat_ap_rules": {
+    "critical_hit": [
+      { "d20_range": [1, 4],   "ap_delta": -3, "label": "They're showing off." },
+      { "d20_range": [5, 15],  "ap_delta": 0,  "label": "Good job." },
+      { "d20_range": [16, 20], "ap_delta": 5,  "label": "Wow! They're dreamy!" }
+    ],
+    "fumble": [
+      { "d20_range": [1, 4],   "ap_delta": -3, "label": "What a nube!" },
+      { "d20_range": [5, 15],  "ap_delta": 0,  "label": "It happens..." },
+      { "d20_range": [16, 20], "ap_delta": 3,  "label": "That's adorable." }
+    ],
+    "aid_actions": [
+      { "action": "providing_flank",       "ap_delta": 2 },
+      { "action": "distracting_opponent",  "ap_delta": 1 },
+      { "action": "killing_opponent",      "ap_delta": 3 },
+      { "action": "physically_aiding",     "ap_delta": 2 },
+      { "action": "healing_treating",      "ap_delta": 4 }
+    ]
+  },
+
+  "intimacy_thresholds": {
+    "hand_holding": 5,
+    "hug": 5,
+    "first_kiss": 10,
+    "anything_more": 30
+  },
+
+  "intimacy_outcome_table": [
+    { "min_total": 21,   "max_total": 999, "label": "That was a spiritual experience.", "ap_delta": 4 },
+    { "min_total": 10,   "max_total": 20,  "label": "That was fun.",                    "ap_delta": 1 },
+    { "min_total": -999, "max_total": 9,   "label": "Let's never speak of this again.", "ap_delta": -5 }
+  ]
+}

@@ -12,7 +12,7 @@ export async function GET(
     const supabase = getSupabase()
     const { data, error } = await supabase
       .from('sessions')
-      .select('id, name, join_token, player_count, scenario_id, date_night_mode, current_rating')
+      .select('id, name, join_token, player_count, scenario_id, date_night_mode, current_rating, module_id')
       .eq('id', id)
       .single()
 
@@ -31,6 +31,10 @@ export async function GET(
       scenario_id: data.scenario_id ?? null,
       date_night_mode: Boolean(data.date_night_mode),
       current_rating: data.current_rating ?? 'PG',
+      // module_id is the route-switch marker for the host UI:
+      //   NULL → /api/dm-action  (legacy WSC code path)
+      //   set  → /api/dm-action-v2 (module-runner code path)
+      module_id: (data as { module_id?: string | null }).module_id ?? null,
     })
   } catch (err) {
     console.error('Failed to fetch session:', err)

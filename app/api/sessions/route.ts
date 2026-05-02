@@ -50,6 +50,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const supabase = getSupabase()
+    // Write `module_id` when the scenario points at an adventure module
+    // (Blackthorn → "blackthorn"). NULL stays the documented marker for
+    // legacy WSC/random-encounter sessions; /api/dm-action-v2 reads this
+    // to decide whether to route through the module-runner code path.
     const { data, error } = await supabase
       .from('sessions')
       .insert({
@@ -60,6 +64,7 @@ export async function POST(req: NextRequest) {
         scenario_id: scenario.id,
         date_night_mode,
         current_rating: initial_rating,
+        module_id: scenario.moduleId ?? null,
       })
       .select('id, join_token')
       .single()
@@ -100,7 +105,14 @@ export async function POST(req: NextRequest) {
       if (charErr) console.warn('Blackthorn auto-character insert failed:', charErr.message)
     }
 
-    return Response.json({ session_id: data.id, join_token: data.join_token }, { status: 201 })
+    return Response.json(
+      {
+        session_id: data.id,
+        join_token: data.join_token,
+        module_id: scenario.moduleId ?? null,
+      },
+      { status: 201 },
+    )
   } catch (err) {
     console.error('Failed to create session:', err)
     return Response.json({ error: 'Failed to create session' }, { status: 500 })

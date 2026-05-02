@@ -71,6 +71,122 @@ const combatStateSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Romance — attraction-point deltas (PIV-04, Sprint 4.6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Attraction-point delta emitted by the AI when a Turn-on / Pet Peeve fires
+ * or a combat / aid event triggers an AP change per the module's
+ * `romance-tables.json`. The runtime applies the delta server-side via
+ * `apply-state-changes.ts → character_romance.current_ap` and appends to
+ * `character_romance.ap_history`.
+ *
+ * Deltas only — the AI never sees, names, or emits the *current* AP number.
+ * It only sees the partner's AP *band* in the per-turn scene context.
+ *
+ * `entity` is matched against `characters.character_name` within the
+ * session (case-insensitive). It maps onto the romance row via the
+ * `character_romance.character_id` foreign key inside the apply step.
+ *
+ * See DECISIONS.md 2026-04-30 "Romance subsystem schema + privacy
+ * enforcement at the API layer" + "AP deltas are first-class state changes
+ * routed via attraction_point_changes[] (not state_changes)".
+ */
+const attractionPointChangeSchema = z.object({
+  /**
+   * The character whose AP changes — the *observer* (the PC reacting to
+   * the partner's action). May be a character UUID, the name from
+   * `characters.character_name`, or the slot id ("wynn"/"tarric"). The
+   * apply step resolves it to a row.
+   */
+  character_id: z.string().min(1),
+  /**
+   * Signed integer. Positive = AP up, negative = AP down. Magnitude
+   * comes from the romance tables' dice rolls, which the AI typically
+   * doesn't roll itself (the runtime can roll on the AI's behalf if the
+   * AI emits a sentinel like a single-die expression — kept simple here:
+   * an integer delta the AI calculated against the table).
+   */
+  delta: z.number().int(),
+  /** Plain-English audit trail (e.g. "Turn-on 'sense of humor' fired"). */
+  reason: z.string().min(1),
+});
+
+export type AttractionPointChange = z.infer<typeof attractionPointChangeSchema>;
+
+// ---------------------------------------------------------------------------
+// DM overrides — bidirectional rule-of-cool (PIV-06, Sprint 4.6)
+// ---------------------------------------------------------------------------
+
+/**
+ * The AI emits a DMOverride when it bends a rule in service of fun, in EITHER
+ * direction (toward triumph or toward consequence). Logged to the event log
+ * via the `ai_response` JSONB blob — auditable after-the-fact for drift
+ * (over-grant-triumph anti-pattern surveillance per the bidirectional ADR).
+ *
+ * See DECISIONS.md 2026-04-30 "Bidirectional rule-of-cool flexibility".
+ */
+const dmOverrideSchema = z.object({
+  type: z.enum(["advantage", "disadvantage", "dc_modify", "circumstance"]),
+  target: z.string().min(1),
+  reason: z.string().min(1),
+  /**
+   * Load-bearing flag. Without this, the apply path can't tell whether
+   * the override bent toward triumph or toward consequence — and we lose
+   * the "cool can go both ways" audit signal.
+   */
+  direction: z.enum(["toward_success", "toward_consequence"]),
+});
+
+export type DMOverride = z.infer<typeof dmOverrideSchema>;
+
+// ---------------------------------------------------------------------------
+// Scene transitions — AI-signaled scene moves (PIV-02b)
+// ---------------------------------------------------------------------------
+
+/**
+ * The AI emits a SceneTransition when the play has moved past the current
+ * scene's exit conditions. The runtime updates `game_state.current_scene_id`
+ * and the next turn's per-turn scene context loads the new scene.
+ *
+ * Without this, the runtime can never advance from one scene to the next —
+ * a P0 for any module with more than one scene.
+ */
+const sceneTransitionSchema = z.object({
+  from_scene_id: z.string().min(1),
+  to_scene_id: z.string().min(1),
+  reason: z.string().min(1),
+});
+
+export type SceneTransition = z.infer<typeof sceneTransitionSchema>;
+
+// ---------------------------------------------------------------------------
+// Narration beats — forward-compat for POL-12 (per-beat fade-in + Continue gates)
+// ---------------------------------------------------------------------------
+
+/**
+ * Optional structured beats so the renderer can later display narration as
+ * discrete fade-in cards with Continue gates between them (POL-12 in BACKLOG).
+ *
+ * Per the ADR "Beat-type validation is strict on author side, loose on AI side"
+ * (DECISIONS.md 2026-04-30): the `type` field is a free string here. Common
+ * values: "read_aloud", "scene_description", "dm_voice". Unknown values
+ * render with the default (dm_voice) style and are valuable as signal that
+ * the AI is improvising — they are not errors.
+ *
+ * In v1 the runtime stitches beats into one paragraph for display; the
+ * canonical surface remains `narration` (string). When POL-12 lands, the
+ * renderer prefers `narration_beats` if present.
+ */
+const narrationBeatSchema = z.object({
+  id: z.string().min(1),
+  type: z.string().min(1),
+  text: z.string().min(1),
+});
+
+export type NarrationBeat = z.infer<typeof narrationBeatSchema>;
+
+// ---------------------------------------------------------------------------
 // Root schema
 // ---------------------------------------------------------------------------
 
@@ -87,6 +203,34 @@ export const dmResponseSchema = z.object({
     dc: z.number().optional(),
     description: z.string().optional(),
   }).optional(),
+  /**
+   * Romance attraction-point deltas. Optional. Only emitted when
+   * `date_night_mode = true` in the per-turn scene context AND the action
+   * triggers a Turn-on, Pet Peeve, combat-chart entry, or aid action per
+   * the module's romance-tables file.
+   */
+  attraction_point_changes: z.array(attractionPointChangeSchema).optional().default([]),
+  /**
+   * Bidirectional rule-of-cool overrides. The AI emits these when it bends
+   * a rule (advantage/disadvantage, DC modify, circumstantial outcome) in
+   * either direction (toward_success or toward_consequence). Logged to the
+   * event log for drift auditing.
+   */
+  dm_overrides: z.array(dmOverrideSchema).optional().default([]),
+  /**
+   * Scene transition signal. When the AI emits this, the runtime updates
+   * `game_state.current_scene_id` to the new scene. Without this field in
+   * the schema, scene advancement is silently broken (Zod strips unknown
+   * fields). P0 for any multi-scene module.
+   */
+  scene_transition: sceneTransitionSchema.optional(),
+  /**
+   * Forward-compat for POL-12 (beat-paced narration with Continue gates).
+   * Optional. Today the runtime ignores this and renders `narration`. When
+   * POL-12 lands, the renderer prefers `narration_beats` when present.
+   * Type field is loose by ADR — unknowns are signal, not noise.
+   */
+  narration_beats: z.array(narrationBeatSchema).optional().default([]),
 });
 
 // ---------------------------------------------------------------------------
@@ -148,6 +292,9 @@ export function parseDMResponse(raw: string): DMResponse {
       state_changes: [],
       dm_rolls: [],
       scene_suggestions: [],
+      attraction_point_changes: [],
+      dm_overrides: [],
+      narration_beats: [],
     } as DMResponse;
   }
 
@@ -184,5 +331,8 @@ function synthesizeRecovery(raw: string): DMResponse {
     state_changes: [],
     dm_rolls: [],
     scene_suggestions: [],
+    attraction_point_changes: [],
+    dm_overrides: [],
+    narration_beats: [],
   } as DMResponse;
 }
