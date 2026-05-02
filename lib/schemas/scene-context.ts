@@ -214,6 +214,18 @@ export const npcStatBlockSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   /**
+   * Stable id of the corresponding token in `game_state.tokens` (set by
+   * the scene's `default_tokens` seeder). Use this as `entity` when
+   * emitting `{ field: 'discovered', value: true }` state_changes — the
+   * apply step matches against tokens, not against this NPC's `id`.
+   *
+   * Optional: only required for NPCs with a seeded token entry. NPCs
+   * that exist purely as narrative references (e.g. unseeded
+   * reinforcements that arrive mid-combat) leave this undefined; the
+   * AI falls back to `id` in that case.
+   */
+  token_id: z.string().min(1).optional(),
+  /**
    * Descriptive label — e.g. `"goblin scout"`, `"Lookout"`,
    * `"Mill kidnapper guard"`. Pre-Sprint-4.7 modules folded class+level
    * into this field as prose ("Bandit (level 2) — the Lookout"); the

@@ -89,6 +89,14 @@ The host screen renders only **discovered** tokens. The per-turn scene context e
 
 **HARD RULE — narration and state_change must travel together.** Whenever your narration mentions, names, describes, or otherwise introduces an NPC who appears in the per-turn scene context's \`scene.npcs[]\`, the manifest's \`shared_npcs[]\`, or any token in \`game_state.tokens[]\` with \`discovered: false\`, you MUST emit \`{ "entity": "<token_id>", "field": "discovered", "value": true }\` in \`state_changes[]\` in the SAME response. No exceptions. The matcher resolves IDs only — use the token's \`id\` field (e.g. \`harold-longfingers\`, \`ruffian_3\`, \`lookout\`), never the display name. Narration may still call them "Harold" or "the lookout"; the \`entity\` field carries the id.
 
+**Use \`token_id\` for discovery, not \`id\`.** When an NPC stat block in the per-turn scene context (in \`scene.npcs[]\` or \`manifest.shared_npcs[]\`) has a \`token_id\` field, that's the value to use as \`entity\` in your \`{ entity, field: 'discovered', value: true }\` state_change. The NPC's \`id\` is for narrative cross-references (NPCs present in locations, plot-point bindings, etc.); the \`token_id\` is what the apply step matches against \`game_state.tokens\`. If \`token_id\` is missing on the stat block, fall back to \`id\`.
+
+> Worked example — Harold appearing in opening narration.
+> Stat block: \`{ "id": "lookout-harold-longfingers", "token_id": "lookout", "name": "Harold Longfingers", ... }\`
+> Narration introduces him on the roof, so emit:
+> \`{ "entity": "lookout", "field": "discovered", "value": true }\`
+> NOT \`{ "entity": "lookout-harold-longfingers", ... }\` — that id is not a token; the matcher would warn and skip the change.
+
 **PC placement.** Player characters are scene-setting context the script establishes up front, not player-earned discoveries. If a PC token (\`kind: "pc"\`) shows \`discovered: false\` in \`game_state.tokens[]\` and the opening narration places that PC in the scene, flip them in the same opening response: \`{ "entity": "<pc_token_id>", "field": "discovered", "value": true }\`. The \`pc_token_ids\` field on the per-turn scene context lists the PC token ids for this scene if the runtime surfaced it; otherwise read them off \`game_state.tokens[]\` where \`kind === "pc"\`.
 
 **Pacing.** Don't reveal everything at once. Reveal NPCs *as the players see, hear, or have plausibly perceived them*. The script often makes this explicit (a lookout visible from the woodline; a sleeping captive visible through a window; ruffians in another room becoming known when their voices are heard or their door is opened). Reveal one at a time when the fiction supports it; reveal in a batch when the script's opening passage names several at once. The pacing rule applies to the timing of reveals; the HARD RULE above applies to the *bind* between narration and state_change in the turn the reveal happens.

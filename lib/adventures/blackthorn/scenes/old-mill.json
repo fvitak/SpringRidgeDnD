@@ -528,6 +528,7 @@
   "npcs": [
     {
       "id": "arnie-wilkens",
+      "token_id": "ruffian_3",
       "name": "Arnie Wilkens",
       "role": "Wynn's Guard (Mill kidnapper, Room 1)",
       "level": 2,
@@ -567,6 +568,7 @@
     },
     {
       "id": "willard-hicks",
+      "token_id": "ruffian_1",
       "name": "Willard Hicks",
       "role": "Ruffian Dice Player (Room 2)",
       "level": 2,
@@ -606,6 +608,7 @@
     },
     {
       "id": "agatha-mills",
+      "token_id": "ruffian_2",
       "name": "Agatha Mills",
       "role": "Woman Ruffian / Bard (Room 2)",
       "level": 2,
