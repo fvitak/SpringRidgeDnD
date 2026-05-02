@@ -85,6 +85,101 @@ export interface ApHistoryEntry {
 // ---------------------------------------------------------------------------
 
 /**
+ * Build the set of pet-peeve rolls that are blocked from selection given a
+ * set of chosen turn-ons. A peeve is blocked if either:
+ *   - a chosen turn-on lists the peeve in its `incompatible_with`, OR
+ *   - the peeve itself lists a chosen turn-on in its `incompatible_with`.
+ * Pure helper used by both `rollPetPeeves` and `pickPetPeeveFromD6`.
+ */
+function blockedPeevesByTurnOns(
+  chosenTurnOnRolls: number[],
+  tables: Pick<RomanceTables, 'turn_ons' | 'pet_peeves'>,
+): Set<number> {
+  const turnOnEntries = chosenTurnOnRolls
+    .map((r) => tables.turn_ons.find((e) => e.roll === r))
+    .filter((e): e is RomanceTableEntry => !!e)
+  const blocked = new Set<number>()
+  for (const to of turnOnEntries) {
+    for (const incompat of to.incompatible_with) blocked.add(incompat)
+  }
+  for (const pp of tables.pet_peeves) {
+    for (const incompat of pp.incompatible_with) {
+      if (chosenTurnOnRolls.includes(incompat)) blocked.add(pp.roll)
+    }
+  }
+  return blocked
+}
+
+/**
+ * Fisher–Yates shuffle using the injected RNG. Pure: returns a new array,
+ * does not mutate `arr`. Used by `pickPetPeeveFromD6` so the picked peeve's
+ * deck order is fresh per roll (per PIV-07 polish: "same d6 number on the
+ * second roll yields a different peeve").
+ */
+function shuffleWithRng<T>(arr: T[], rng: RomanceRng): T[] {
+  const out = arr.slice()
+  for (let i = out.length - 1; i > 0; i--) {
+    // rng.d(i + 1) returns 1..(i+1); subtract 1 to get 0..i.
+    const j = rng.d(i + 1) - 1
+    ;[out[i], out[j]] = [out[j], out[i]]
+  }
+  return out
+}
+
+/**
+ * Pick a single pet peeve given the player's physical d6 result.
+ *
+ * The picking rule (PIV-07 polish):
+ *   1. Filter the 20 peeves to drop those blocked by the chosen turn-ons,
+ *      already in `excludeRolls`, or pairwise-incompatible with any peeve
+ *      already in `excludeRolls`.
+ *   2. Fresh-shuffle the remaining peeves with the injected RNG. This is
+ *      *not* deterministic per character — a fresh shuffle every roll is
+ *      the whole point ("same d6 number ≠ same peeve across rolls").
+ *   3. Take the top 6 entries of the shuffled deck and pick `top6[d6 - 1]`.
+ *      If fewer than 6 candidates remain after filtering, the d6 picks into
+ *      a wrapped index — modulo by the candidate count. This is rare in
+ *      practice (the Blackthorn tables always leave ≥6 candidates) but
+ *      keeps the function total.
+ */
+export function pickPetPeeveFromD6(args: {
+  d6: number
+  chosenTurnOnRolls: number[]
+  excludeRolls: number[]
+  tables: Pick<RomanceTables, 'turn_ons' | 'pet_peeves'>
+  rng?: RomanceRng
+}): { roll: number } {
+  const { d6, chosenTurnOnRolls, excludeRolls, tables, rng = defaultRng } = args
+  if (!Number.isInteger(d6) || d6 < 1 || d6 > 6) {
+    throw new Error(`pickPetPeeveFromD6: d6 must be 1-6 (got ${d6})`)
+  }
+  const blocked = blockedPeevesByTurnOns(chosenTurnOnRolls, tables)
+  const excludeIncompats = new Set<number>()
+  for (const ex of excludeRolls) {
+    const e = tables.pet_peeves.find((p) => p.roll === ex)
+    if (!e) continue
+    for (const other of e.incompatible_with) excludeIncompats.add(other)
+  }
+  const candidates = tables.pet_peeves.filter((p) => {
+    if (blocked.has(p.roll)) return false
+    if (excludeRolls.includes(p.roll)) return false
+    if (excludeIncompats.has(p.roll)) return false
+    // Within-peeve: skip peeves that list any excluded peeve as incompat.
+    if (p.incompatible_with.some((other) => excludeRolls.includes(other))) return false
+    return true
+  })
+  if (candidates.length === 0) {
+    throw new Error('pickPetPeeveFromD6: no candidate peeves left after filtering')
+  }
+  const shuffled = shuffleWithRng(candidates, rng)
+  const top = shuffled.slice(0, Math.min(6, shuffled.length))
+  // d6 - 1 is the player's intended index. If the candidate pool dropped
+  // below 6 we wrap so the call still resolves to a real entry.
+  const idx = (d6 - 1) % top.length
+  return { roll: top[idx].roll }
+}
+
+/**
  * Roll two d20 Pet Peeves, re-rolling on:
  *   - already-chosen turn-on incompatibility (cross-table)
  *   - already-chosen pet-peeve duplicate (within-table)
@@ -93,6 +188,11 @@ export interface ApHistoryEntry {
  * The PDF (page 6) calls for re-rolling on either incompatibility or
  * duplication. The engine deterministically re-rolls until two valid
  * peeves are produced.
+ *
+ * NOTE: As of PIV-07 the production flow uses `pickPetPeeveFromD6`
+ * (player rolls a physical d6, server fresh-shuffles per roll). This
+ * function remains for the privacy regression test and any future
+ * non-interactive callers.
  */
 export function rollPetPeeves(
   chosenTurnOnRolls: number[],
@@ -150,11 +250,19 @@ export function rollPetPeeves(
  *
  * The PDF gives each PC a fixed "no-roll" bonus, plus the *other* PC's
  * CHA modifier, plus three independent d20 preconception rolls. We accept
- * the d20 rolls from the caller (the API endpoint rolls them on the
- * client-supplied seed; the engine just resolves them).
+ * the d20 rolls from the caller (the player typed them in from a physical
+ * d20).
  *
- * `rng` is unused on the happy path but kept on the signature for
- * symmetry (and so a malformed preconception lookup can fall back).
+ * Per-roll bucket randomization (PIV-07 polish): the PDF maps the d20 to
+ * three fixed buckets [1-6] / [7-13] / [14-20] which line up with the
+ * table's three branches (negative / neutral / positive). Default mapping
+ * is one of six possible permutations; we randomize the
+ * outcome-to-bucket mapping per preconception so the same d20 number
+ * across different rolls rarely yields the same outcome. Bucket SIZES
+ * stay fixed (6 / 7 / 7) — the PDF's probability split is preserved.
+ *
+ * `rng` is used for both the per-preconception bucket permutation AND
+ * the dice roll on the chosen branch's `ap_modifier`.
  */
 export function computeFirstImpression(args: {
   viewerPcId: string
@@ -196,10 +304,12 @@ export function computeFirstImpression(args: {
 
   // Each preconception is a d20 with three result branches; the table
   // stores them as separate rows keyed to `d20_range`. Group by 3 — the
-  // first 3 entries are the first preconception's branches, etc. (This
-  // matches the PDF structure: three preconceptions × three branches.)
+  // first 3 entries are the first preconception's branches, etc.
   const branchesPerPreconception = 3
   const totalPreconceptions = Math.floor(entry.preconceptions.length / branchesPerPreconception)
+
+  // Fixed buckets — sizes preserved per PDF.
+  const BUCKETS: Array<[number, number]> = [[1, 6], [7, 13], [14, 20]]
 
   for (let i = 0; i < totalPreconceptions; i++) {
     const d20 = rolls[i]
@@ -208,14 +318,51 @@ export function computeFirstImpression(args: {
     }
     const start = i * branchesPerPreconception
     const branches = entry.preconceptions.slice(start, start + branchesPerPreconception)
-    const branch = branches.find(
-      (b) => d20 >= b.d20_range[0] && d20 <= b.d20_range[1],
-    )
-    if (!branch) {
-      throw new Error(
-        `computeFirstImpression: no branch for preconception ${i} d20=${d20}`,
-      )
+
+    // Tag each branch by its outcome class. `subtract` = negative, `null`
+    // = neutral, `add` = positive. The original table author orders them
+    // negative-then-neutral-then-positive but we don't rely on that order
+    // — we look it up.
+    const negative = branches.find((b) => b.ap_modifier?.direction === 'subtract')
+    const neutral = branches.find((b) => b.ap_modifier === null || b.ap_modifier === undefined)
+    const positive = branches.find((b) => b.ap_modifier?.direction === 'add')
+    if (!negative || !neutral || !positive) {
+      // Fall back to the legacy (PDF-default) mapping if the table isn't
+      // negative/neutral/positive shaped.
+      const branch = branches.find((b) => d20 >= b.d20_range[0] && d20 <= b.d20_range[1])
+      if (!branch) {
+        throw new Error(
+          `computeFirstImpression: no branch for preconception ${i} d20=${d20}`,
+        )
+      }
+      let delta = 0
+      if (branch.ap_modifier) {
+        const sides = diceSidesFromExpression(branch.ap_modifier.dice)
+        const dice = rng.d(sides)
+        delta = branch.ap_modifier.direction === 'subtract' ? -dice : dice
+      }
+      total += delta
+      components.push({
+        source: `preconception:${branch.id}`,
+        delta,
+        detail: branch.idea_text,
+      })
+      continue
     }
+
+    // Random permutation: bucket index 0..2 -> outcome (one of the three
+    // branches). Fisher–Yates over a 3-element array via injected RNG so
+    // tests using `fixedSequenceRng` stay deterministic.
+    const outcomes = [negative, neutral, positive]
+    const permutation = shuffleWithRng([0, 1, 2], rng)
+    const bucketIdx = BUCKETS.findIndex(
+      ([lo, hi]) => d20 >= lo && d20 <= hi,
+    )
+    if (bucketIdx === -1) {
+      throw new Error(`computeFirstImpression: d20=${d20} out of bucket range`)
+    }
+    const branch = outcomes[permutation[bucketIdx]]
+
     let delta = 0
     if (branch.ap_modifier) {
       const sides = diceSidesFromExpression(branch.ap_modifier.dice)

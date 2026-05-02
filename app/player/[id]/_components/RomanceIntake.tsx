@@ -8,9 +8,14 @@
 //   - the character_romance row is missing or incomplete.
 //
 // Three steps:
-//   1. Turn-ons picker (deterministic shuffle of 20 cards, pick 3)
-//   2. Pet Peeves auto-roll (the watch-it-happen moment)
-//   3. First Impressions roll (3 sequential client-side d20s)
+//   1. Turn-ons picker (deterministic shuffle of 20 cards, pick 3 via
+//      a horizontal carousel + visible picked pile + "That's me" button)
+//   2. Pet Peeves player-rolled d6 input — server fresh-shuffles the
+//      eligible pool per roll, two rolls total, deck reshuffles between
+//      so the same d6 number rarely yields the same peeve
+//   3. First Impressions player-rolled d20 input — server resolves with
+//      per-roll bucket randomization (outcome-to-bucket mapping randomized
+//      per preconception; bucket sizes 6/7/7 stay fixed)
 //
 // Privacy: every POST to /api/characters/[id]/{turn-ons,pet-peeves,
 // first-impression} carries `actor: characterId` for the owner check.
@@ -21,7 +26,7 @@
 // and copy.md §6a (microcopy library) for the canonical UX spec.
 // ---------------------------------------------------------------------------
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 // ---------------------------------------------------------------------------
 // Types — minimal client mirrors of the API responses. Kept narrow on purpose
@@ -87,20 +92,6 @@ function shuffleDeterministic<T>(arr: T[], seed: number): T[] {
   return out
 }
 
-function rollD20(): number {
-  // Crypto-safe (uses the same primitive the server uses for its own rolls).
-  const buf = new Uint32Array(1)
-  crypto.getRandomValues(buf)
-  // Rejection sampling for unbiased 1-20.
-  const max = Math.floor(0x100000000 / 20) * 20
-  let v = buf[0]
-  while (v >= max) {
-    crypto.getRandomValues(buf)
-    v = buf[0]
-  }
-  return (v % 20) + 1
-}
-
 // ---------------------------------------------------------------------------
 // Step 1: Turn-ons picker
 // ---------------------------------------------------------------------------
@@ -112,38 +103,93 @@ interface Step1Props {
 }
 
 function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
+  // Deterministic shuffle — must NOT change across refreshes (same seed). The
+  // hashString(characterId) seed and shuffleDeterministic() output are
+  // load-bearing; do not replace.
   const shuffled = useMemo(
     () => shuffleDeterministic(turnOns, hashString(characterId)),
     [turnOns, characterId],
   )
+
+  // Carousel index (0..shuffled.length-1). Unlike the previous one-way stack,
+  // the player can navigate freely back and forth.
   const [cardIndex, setCardIndex] = useState(0)
   const [picked, setPicked] = useState<number[]>([])
   const [showConfirm, setShowConfirm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const total = shuffled.length
   const card = shuffled[cardIndex]
-  const allCardsExhausted = cardIndex >= shuffled.length
+  const isPicked = card ? picked.includes(card.roll) : false
+  const canPickMore = picked.length < 3
 
-  // Auto-show confirm once 3 are picked.
-  useEffect(() => {
-    if (picked.length === 3) setShowConfirm(true)
-  }, [picked])
+  // Touch gesture handling — tracks the start coords of a single touch and
+  // computes a horizontal swipe on touch end. Threshold is 40px so vertical
+  // scrolling on the page doesn't trigger nav.
+  const touchStartXRef = useRef<number | null>(null)
+  const touchStartYRef = useRef<number | null>(null)
 
-  function handlePick() {
-    if (!card) return
-    if (picked.includes(card.roll)) {
-      // Skip duplicates (shouldn't happen since we advance, but be safe).
-      setCardIndex((i) => i + 1)
-      return
-    }
-    const next = [...picked, card.roll]
-    setPicked(next)
-    setCardIndex((i) => i + 1)
+  const goNext = useCallback(() => {
+    setCardIndex((i) => Math.min(i + 1, total - 1))
+  }, [total])
+
+  const goPrev = useCallback(() => {
+    setCardIndex((i) => Math.max(i - 1, 0))
+  }, [])
+
+  function handleTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0]
+    if (!t) return
+    touchStartXRef.current = t.clientX
+    touchStartYRef.current = t.clientY
+  }
+  function handleTouchEnd(e: React.TouchEvent) {
+    const startX = touchStartXRef.current
+    const startY = touchStartYRef.current
+    touchStartXRef.current = null
+    touchStartYRef.current = null
+    if (startX == null || startY == null) return
+    const t = e.changedTouches[0]
+    if (!t) return
+    const dx = t.clientX - startX
+    const dy = t.clientY - startY
+    // Only treat as a swipe if the gesture is mostly horizontal — keeps
+    // page-level scrolling natural.
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return
+    if (dx < 0) goNext()
+    else goPrev()
   }
 
-  function handleSkip() {
-    setCardIndex((i) => i + 1)
+  // Keyboard arrows — desktop / iPad-with-keyboard fallback.
+  useEffect(() => {
+    if (showConfirm) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowRight') goNext()
+      else if (e.key === 'ArrowLeft') goPrev()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [goNext, goPrev, showConfirm])
+
+  function togglePickCurrent() {
+    if (!card) return
+    if (picked.includes(card.roll)) {
+      // Un-pick (frees a slot, re-disables confirm if we drop below 3).
+      setPicked((prev) => prev.filter((r) => r !== card.roll))
+      return
+    }
+    if (picked.length >= 3) return
+    setPicked((prev) => [...prev, card.roll])
+  }
+
+  // Tap a chip in the pile -> jump the carousel to that card. We considered
+  // direct-removal-on-chip-tap, but jumping reveals the full effect text and
+  // gives the player a chance to confirm via "Remove" — fewer accidental
+  // un-picks on a phone where chips are small.
+  function jumpToRoll(roll: number) {
+    const idx = shuffled.findIndex((c) => c.roll === roll)
+    if (idx >= 0) setCardIndex(idx)
   }
 
   function handleStartOver() {
@@ -213,9 +259,16 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
             {submitting ? 'Locking in...' : 'Lock these in →'}
           </button>
           <button
+            onClick={() => setShowConfirm(false)}
+            disabled={submitting}
+            className="w-full py-3 text-sm text-gray-400 hover:text-gray-200 underline disabled:opacity-40"
+          >
+            Back to picking
+          </button>
+          <button
             onClick={handleStartOver}
             disabled={submitting}
-            className="w-full py-3 text-sm text-gray-500 hover:text-gray-300 underline disabled:opacity-40"
+            className="w-full py-2 text-xs text-gray-500 hover:text-gray-300 underline disabled:opacity-40"
           >
             Start over
           </button>
@@ -224,75 +277,171 @@ function TurnOnsStep({ characterId, turnOns, onComplete }: Step1Props) {
     )
   }
 
-  // ---------- Stack exhausted but fewer than 3 picked ----------
-  if (allCardsExhausted && picked.length < 3) {
-    return (
-      <div className="space-y-5">
-        <header className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-pink-400">Step 1 of 3</p>
-          <h2 className="text-2xl font-bold text-pink-200">Pick a few more</h2>
-          <p className="text-sm text-gray-400">
-            You&apos;ve only picked {picked.length}. Take another pass.
-          </p>
-        </header>
-        <button
-          onClick={handleStartOver}
-          className="w-full py-4 bg-pink-700 hover:bg-pink-600 text-white font-bold rounded-2xl"
-        >
-          Start over
-        </button>
-      </div>
-    )
-  }
+  // ---------- Carousel ----------
+  const pickedCards = picked
+    .map((r) => shuffled.find((c) => c.roll === r))
+    .filter((c): c is TurnOnCard => !!c)
+  const remaining = 3 - picked.length
+  const hint =
+    remaining === 3
+      ? 'Pick three.'
+      : remaining === 2
+      ? 'Pick two more.'
+      : remaining === 1
+      ? 'Pick one more.'
+      : 'Looking good.'
 
-  // ---------- Card stack ----------
   return (
     <div className="space-y-5">
       <header className="space-y-1">
         <p className="text-xs font-semibold uppercase tracking-widest text-pink-400">Step 1 of 3</p>
         <h2 className="text-2xl font-bold text-pink-200">
-          Pick three turn-ons <span className="text-gray-500 font-normal">({picked.length}/3)</span>
+          Pick three turn-ons{' '}
+          <span className="text-gray-500 font-normal">({picked.length}/3)</span>
         </h2>
-        <p className="text-sm text-gray-400">What does your character notice in someone?</p>
+        <p className="text-sm text-gray-400">
+          Swipe or use the arrows. Tap a card to add or remove it.
+        </p>
       </header>
 
-      {/* Stack indicator */}
-      <div className="flex justify-center gap-1.5">
-        {shuffled.map((_, i) => (
-          <span
-            key={i}
-            className={`block h-1.5 rounded-full transition-all ${
-              i < cardIndex ? 'w-1.5 bg-gray-700' : i === cardIndex ? 'w-6 bg-pink-400' : 'w-1.5 bg-gray-800'
-            }`}
-          />
-        ))}
+      {/* Position indicator: card N of 20 + a slim progress bar. */}
+      <div className="flex items-center justify-between text-xs text-gray-500">
+        <span>
+          Card <span className="text-pink-300 font-semibold">{cardIndex + 1}</span> of {total}
+        </span>
+        <span className="italic">{hint}</span>
+      </div>
+      <div className="h-1 w-full rounded-full bg-gray-800 overflow-hidden">
+        <div
+          className="h-full bg-pink-500 transition-all"
+          style={{ width: `${((cardIndex + 1) / total) * 100}%` }}
+        />
       </div>
 
-      {/* Card */}
-      {card && (
-        <div className="rounded-3xl bg-gradient-to-b from-gray-900 to-gray-950 border-2 border-pink-900/50 p-6 min-h-[280px] flex flex-col justify-between shadow-lg">
-          <div>
-            <p className="text-2xl font-bold text-pink-200 leading-snug">&ldquo;{card.name}&rdquo;</p>
-            <p className="text-base text-gray-300 mt-4 leading-relaxed">{card.effect_text}</p>
-            <p className="text-xs text-gray-500 mt-3 italic">Adds {card.dice} when this fires.</p>
-          </div>
-        </div>
-      )}
-
-      {/* Action buttons — minimum 44px tall per UX accessibility note */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Carousel row — current card centered, prev/next arrow buttons on
+          either side. Touch swipe on the card itself. */}
+      <div className="flex items-stretch gap-2">
         <button
-          onClick={handleSkip}
-          className="py-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 font-semibold rounded-2xl transition-colors min-h-[52px]"
+          onClick={goPrev}
+          disabled={cardIndex === 0}
+          aria-label="Previous turn-on"
+          className="shrink-0 w-10 rounded-2xl bg-gray-900 border border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-pink-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-2xl"
         >
-          Pass
+          ‹
         </button>
+
+        {card && (
+          <div
+            key={card.roll}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            className={`flex-1 rounded-3xl border-2 p-6 min-h-[280px] flex flex-col justify-between shadow-lg transition-all duration-200 select-none ${
+              isPicked
+                ? 'bg-gradient-to-b from-pink-950/60 to-gray-950 border-pink-500'
+                : 'bg-gradient-to-b from-gray-900 to-gray-950 border-pink-900/50'
+            }`}
+          >
+            <div>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-2xl font-bold text-pink-200 leading-snug">
+                  &ldquo;{card.name}&rdquo;
+                </p>
+                {isPicked && (
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest bg-pink-500 text-white px-2 py-1 rounded-full">
+                    Picked
+                  </span>
+                )}
+              </div>
+              <p className="text-base text-gray-300 mt-4 leading-relaxed">{card.effect_text}</p>
+              <p className="text-xs text-gray-500 mt-3 italic">Adds {card.dice} when this fires.</p>
+            </div>
+          </div>
+        )}
+
         <button
-          onClick={handlePick}
-          disabled={picked.length >= 3}
-          className="py-4 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 text-white font-bold rounded-2xl transition-colors min-h-[52px]"
+          onClick={goNext}
+          disabled={cardIndex >= total - 1}
+          aria-label="Next turn-on"
+          className="shrink-0 w-10 rounded-2xl bg-gray-900 border border-gray-800 text-gray-400 hover:bg-gray-800 hover:text-pink-300 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-2xl"
         >
-          This me
+          ›
+        </button>
+      </div>
+
+      {/* Primary action — That's me / Remove for the current card. */}
+      <button
+        onClick={togglePickCurrent}
+        disabled={!isPicked && !canPickMore}
+        className={`w-full py-4 font-bold text-base rounded-2xl transition-colors min-h-[52px] ${
+          isPicked
+            ? 'bg-gray-800 hover:bg-gray-700 border border-pink-700 text-pink-200'
+            : 'bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white'
+        }`}
+      >
+        {isPicked
+          ? 'Remove'
+          : canPickMore
+          ? "That's me"
+          : 'List is full — remove one to swap'}
+      </button>
+
+      {/* Picked pile — sticky strip at the bottom of the flow showing chosen
+          turn-ons in pick order. Trophy shelf, not waste bin. Tap a chip to
+          jump the carousel to that card; the player then taps "Remove" on
+          the card itself to un-pick. */}
+      <div className="rounded-2xl bg-gray-900/70 border border-pink-900/40 p-3 space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <p className="font-semibold uppercase tracking-widest text-pink-400">
+            Your picks{' '}
+            <span className="text-gray-500 normal-case font-normal">
+              ({picked.length} of 3)
+            </span>
+          </p>
+          {picked.length > 0 && (
+            <button
+              onClick={handleStartOver}
+              className="text-gray-500 hover:text-gray-300 underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {pickedCards.length === 0 ? (
+          <p className="text-xs text-gray-600 italic px-1 py-2">
+            Nothing picked yet. Browse the deck and tap the ones that fit.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {pickedCards.map((c, i) => {
+              const isCurrent = card && c.roll === card.roll
+              return (
+                <button
+                  key={c.roll}
+                  onClick={() => jumpToRoll(c.roll)}
+                  className={`px-3 py-2 rounded-full text-xs font-semibold border transition-colors ${
+                    isCurrent
+                      ? 'bg-pink-500 border-pink-400 text-white'
+                      : 'bg-pink-900/40 border-pink-800 text-pink-200 hover:bg-pink-800/60'
+                  }`}
+                  aria-label={`Jump to ${c.name}`}
+                >
+                  <span className="mr-1 opacity-60">{i + 1}.</span>
+                  {c.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Confirm — disabled until 3 picked, with a soft hint underneath. */}
+      <div className="space-y-1">
+        <button
+          onClick={() => setShowConfirm(true)}
+          disabled={picked.length !== 3}
+          className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
+        >
+          {picked.length === 3 ? 'Looks good →' : `Pick ${remaining} more`}
         </button>
       </div>
     </div>
@@ -309,122 +458,159 @@ interface Step2Props {
 }
 
 function PetPeevesStep({ characterId, onComplete }: Step2Props) {
-  const [phase, setPhase] = useState<'prompt' | 'rolling' | 'reveal'>('prompt')
-  const [peeves, setPeeves] = useState<PetPeeveCard[]>([])
+  // The player rolls a physical d6 twice — once per peeve. After each
+  // submission the server fresh-shuffles the eligible pool and returns
+  // the picked peeve. Reshuffling between rolls is the whole point: the
+  // same d6 number on the second roll yields a different peeve.
+  const TOTAL_ROLLS = 2
+  const [rollIdx, setRollIdx] = useState(0) // 0 or 1; equals "current roll number - 1"
+  const [d6Input, setD6Input] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [revealed, setRevealed] = useState<PetPeeveCard[]>([])
+  const [showReveal, setShowReveal] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [revealedCount, setRevealedCount] = useState(0)
 
-  async function handleRoll() {
-    setPhase('rolling')
+  const d6Value = Number(d6Input)
+  const d6Valid = Number.isInteger(d6Value) && d6Value >= 1 && d6Value <= 6
+
+  async function handleSubmitD6() {
+    if (!d6Valid || submitting) return
+    setSubmitting(true)
     setError(null)
     try {
       const res = await fetch(`/api/characters/${characterId}/pet-peeves`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actor: characterId }),
+        body: JSON.stringify({ actor: characterId, d6: d6Value }),
       })
       const data = await res.json()
       if (!res.ok) {
         setError(data?.error ?? `HTTP ${res.status}`)
-        setPhase('prompt')
+        setSubmitting(false)
         return
       }
-      setPeeves(data.pet_peeves ?? [])
-      setPhase('reveal')
-      // Stagger the reveal so cards flip in sequence.
-      setTimeout(() => setRevealedCount(1), 600)
-      setTimeout(() => setRevealedCount(2), 1400)
+      const picked: PetPeeveCard | undefined = data.pet_peeve
+      if (!picked) {
+        setError('Server did not return a pet peeve.')
+        setSubmitting(false)
+        return
+      }
+      setRevealed((prev) => [...prev, picked])
+      setShowReveal(true)
+      setSubmitting(false)
+      setD6Input('')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
-      setPhase('prompt')
+      setSubmitting(false)
     }
   }
 
-  if (phase === 'prompt') {
+  function handleNextAfterReveal() {
+    setShowReveal(false)
+    if (rollIdx + 1 >= TOTAL_ROLLS) {
+      onComplete()
+      return
+    }
+    setRollIdx((i) => i + 1)
+  }
+
+  // Reveal screen — shown after each successful d6 submission.
+  if (showReveal) {
+    const last = revealed[revealed.length - 1]
+    if (!last) {
+      // Defensive — should not happen.
+      return null
+    }
     return (
       <div className="space-y-5">
         <header className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-widest text-pink-400">Step 2 of 3</p>
-          <h2 className="text-2xl font-bold text-pink-200">Now roll for what bugs you</h2>
+          <h2 className="text-2xl font-bold text-pink-200">
+            Pet peeve {revealed.length} of {TOTAL_ROLLS}
+          </h2>
         </header>
 
-        <div className="rounded-3xl bg-gradient-to-b from-gray-900 to-gray-950 border-2 border-pink-900/30 p-6">
-          <p className="text-base text-gray-300 leading-relaxed">
-            Two pet peeves, picked at random — you don&apos;t choose these. Your
-            character will react when their partner triggers one.
+        <div className="rounded-3xl bg-gradient-to-b from-pink-950/40 to-gray-950 border-2 border-pink-900/60 p-6 space-y-3 transition-all duration-500">
+          <p className="text-2xl font-bold text-pink-200 leading-snug">
+            &ldquo;{last.name}&rdquo;
           </p>
-          <p className="text-xs text-gray-600 italic mt-3">
-            Private — angle your screen if your partner is nearby.
-          </p>
+          <p className="text-base text-gray-300 leading-relaxed">{last.effect_text}</p>
+          <p className="text-xs text-gray-500 italic">Subtracts {last.dice} when this fires.</p>
         </div>
 
-        {error && (
-          <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-xl p-3">
-            {error}
-          </p>
+        {/* Show the previous reveal too, if we're on roll 2, so the player
+            sees their full pile so far. */}
+        {revealed.length > 1 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Earlier pick</p>
+            {revealed.slice(0, -1).map((p) => (
+              <div key={p.roll} className="rounded-xl bg-gray-900 border border-gray-800 p-3">
+                <p className="text-sm font-bold text-pink-200">{p.name}</p>
+                <p className="text-xs text-gray-400 mt-1">{p.effect_text}</p>
+              </div>
+            ))}
+          </div>
         )}
 
         <button
-          onClick={handleRoll}
+          onClick={handleNextAfterReveal}
           className="w-full py-4 bg-pink-600 hover:bg-pink-500 text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
         >
-          Roll
+          {revealed.length >= TOTAL_ROLLS ? 'Continue' : 'Roll the second d6'}
         </button>
       </div>
     )
   }
 
-  if (phase === 'rolling') {
-    return (
-      <div className="space-y-5">
-        <header className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-pink-400">Step 2 of 3</p>
-          <h2 className="text-2xl font-bold text-pink-200">Rolling…</h2>
-        </header>
-        <div className="rounded-3xl bg-gray-900 border-2 border-pink-900/40 p-10 flex justify-center gap-6">
-          <span className="text-6xl animate-spin inline-block" style={{ animationDuration: '0.6s' }}>
-            🎲
-          </span>
-          <span className="text-6xl animate-spin inline-block" style={{ animationDuration: '0.8s' }}>
-            🎲
-          </span>
-        </div>
-      </div>
-    )
-  }
-
-  // Reveal
+  // Prompt screen — d6 numeric keypad input.
   return (
     <div className="space-y-5">
       <header className="space-y-1">
         <p className="text-xs font-semibold uppercase tracking-widest text-pink-400">Step 2 of 3</p>
-        <h2 className="text-2xl font-bold text-pink-200">Your pet peeves</h2>
-        <p className="text-sm text-gray-400">These will sting when your partner trips them.</p>
+        <h2 className="text-2xl font-bold text-pink-200">
+          Roll a d6 <span className="text-gray-500 font-normal">({rollIdx + 1}/{TOTAL_ROLLS})</span>
+        </h2>
+        <p className="text-sm text-gray-400">
+          Roll a physical d6 (1–6) and enter the number. The deck reshuffles each roll, so
+          the same number can mean different things.
+        </p>
       </header>
 
-      <div className="space-y-3">
-        {peeves.map((p, idx) => (
-          <div
-            key={p.roll}
-            className={`rounded-2xl border p-4 transition-all duration-500 ${
-              idx < revealedCount
-                ? 'bg-gray-900 border-pink-900/60 opacity-100 translate-y-0'
-                : 'bg-gray-900/50 border-gray-800 opacity-0 translate-y-2'
-            }`}
-          >
-            <p className="text-base font-bold text-pink-200">{p.name}</p>
-            <p className="text-sm text-gray-400 mt-1 leading-relaxed">{p.effect_text}</p>
-            <p className="text-xs text-gray-600 italic mt-2">Subtracts {p.dice} when this fires.</p>
-          </div>
-        ))}
+      <div className="rounded-3xl bg-gradient-to-b from-gray-900 to-gray-950 border-2 border-pink-900/30 p-6 space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+          Your d6
+        </p>
+        <input
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={1}
+          value={d6Input}
+          onChange={(e) => {
+            // Strip non-digits and clamp to 1 char.
+            const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 1)
+            setD6Input(raw)
+          }}
+          placeholder="?"
+          autoFocus
+          className="w-full text-center text-6xl font-bold bg-gray-950 border-2 border-pink-900/60 rounded-2xl py-6 text-pink-200 placeholder-gray-700 focus:outline-none focus:border-pink-500"
+        />
+        <p className="text-xs text-gray-600 italic">
+          Private — angle your screen if your partner is nearby.
+        </p>
       </div>
 
+      {error && (
+        <p className="text-sm text-red-400 bg-red-950/30 border border-red-900 rounded-xl p-3">
+          {error}
+        </p>
+      )}
+
       <button
-        onClick={onComplete}
-        disabled={revealedCount < peeves.length}
-        className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
+        onClick={handleSubmitD6}
+        disabled={!d6Valid || submitting}
+        className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
       >
-        Continue
+        {submitting ? 'Shuffling…' : d6Valid ? 'Reveal' : 'Enter 1–6'}
       </button>
     </div>
   )
@@ -447,6 +633,7 @@ interface ImpressionComponent {
 
 function FirstImpressionStep({ characterId, onComplete }: Step3Props) {
   const [rolls, setRolls] = useState<number[]>([])
+  const [d20Input, setD20Input] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resultBand, setResultBand] = useState<ApBand | null>(null)
@@ -456,10 +643,13 @@ function FirstImpressionStep({ characterId, onComplete }: Step3Props) {
   const TOTAL_ROLLS = 3
   const currentRollIdx = rolls.length
 
-  function handleRoll() {
-    if (rolls.length >= TOTAL_ROLLS) return
-    const r = rollD20()
-    setRolls((prev) => [...prev, r])
+  const d20Value = Number(d20Input)
+  const d20Valid = Number.isInteger(d20Value) && d20Value >= 1 && d20Value <= 20
+
+  function handleSubmitD20() {
+    if (!d20Valid || rolls.length >= TOTAL_ROLLS) return
+    setRolls((prev) => [...prev, d20Value])
+    setD20Input('')
   }
 
   async function handleSubmit() {
@@ -591,12 +781,31 @@ function FirstImpressionStep({ characterId, onComplete }: Step3Props) {
       )}
 
       {rolls.length < TOTAL_ROLLS ? (
-        <button
-          onClick={handleRoll}
-          className="w-full py-4 bg-pink-600 hover:bg-pink-500 text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
-        >
-          Roll d20
-        </button>
+        <div className="rounded-3xl bg-gradient-to-b from-gray-900 to-gray-950 border-2 border-pink-900/30 p-6 space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+            Roll a d20 — preconception {currentRollIdx + 1} of {TOTAL_ROLLS}
+          </p>
+          <input
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={2}
+            value={d20Input}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 2)
+              setD20Input(raw)
+            }}
+            placeholder="?"
+            autoFocus
+            className="w-full text-center text-6xl font-bold bg-gray-950 border-2 border-pink-900/60 rounded-2xl py-6 text-pink-200 placeholder-gray-700 focus:outline-none focus:border-pink-500"
+          />
+          <button
+            onClick={handleSubmitD20}
+            disabled={!d20Valid}
+            className="w-full py-4 bg-pink-600 hover:bg-pink-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors min-h-[52px]"
+          >
+            {d20Valid ? 'Lock in' : 'Enter 1–20'}
+          </button>
+        </div>
       ) : (
         <button
           onClick={handleSubmit}
