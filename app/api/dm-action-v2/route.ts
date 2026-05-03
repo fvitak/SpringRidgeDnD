@@ -194,7 +194,11 @@ export async function POST(req: NextRequest) {
     console.error('[v2] Failed to fetch event log:', err)
   }
 
-  const isOpeningTurn = isSceneStartSentinel && eventLogTotal === 0
+  // Opening turn = the player's first interaction with this session,
+  // regardless of whether the auto-fire sentinel triggered or the player
+  // typed something themselves. The empty event log is the load-bearing
+  // signal; the sentinel is just a UX convenience.
+  const isOpeningTurn = eventLogTotal === 0
 
   const historyMessages: Anthropic.MessageParam[] = []
   for (const entry of eventLog) {
@@ -283,8 +287,108 @@ export async function POST(req: NextRequest) {
           const loggedInput = isOpeningTurn ? '[Opening scene]' : player_input.trim()
           await appendEventLog(session_id, loggedInput, dmResponse)
 
+          // Defensive ID translation for `discovered` state_changes.
+          //
+          // Background: scene/manifest NPC `id` values are descriptive
+          // (e.g. "lookout-harold-longfingers", "arnie-wilkens"). The
+          // tokens those NPCs correspond to in `game_state.tokens` use
+          // short ids (e.g. "lookout", "ruffian_3"). Each NPC stat block
+          // carries an explicit `token_id` mapping. The module-runner
+          // prompt instructs the AI to emit `entity: <token_id>` for
+          // discovery flips, but the AI can still default to the more
+          // prominent `id` field. This translation makes the apply path
+          // resilient to that — if a `discovered` state_change's entity
+          // matches an NPC's `id` AND that NPC has a `token_id`, swap
+          // them before apply.
+          //
+          // No-op when the AI emits the right id directly.
+          const npcIdToTokenId = new Map<string, string>()
+          for (const npc of [...(scene.npcs ?? []), ...(manifest.shared_npcs ?? [])]) {
+            if (typeof npc.token_id === 'string' && npc.token_id.trim() !== '') {
+              npcIdToTokenId.set(npc.id, npc.token_id)
+            }
+          }
+          const translatedStateChanges = dmResponse.state_changes.map((sc) => {
+            if (sc.field === 'discovered' && typeof sc.entity === 'string') {
+              const mapped = npcIdToTokenId.get(sc.entity)
+              if (mapped && mapped !== sc.entity) {
+                console.warn(
+                  `[v2] Translating discovery entity "${sc.entity}" → "${mapped}" (AI used npc.id; should have used token_id).`,
+                )
+                return { ...sc, entity: mapped }
+              }
+            }
+            return sc
+          })
+
+          // Server-side discovery fallback for opening turns.
+          //
+          // The AI is unreliable about emitting `state_changes` while it
+          // focuses on prose — repeated playtests showed beautiful opening
+          // narration with `state_changes: []`, leaving Wynn / lookout /
+          // dozing-guard tokens unflipped and the host map empty. Rather
+          // than keep tightening the prompt rule, the server flips
+          // discovery for everyone the scene wants visible at scene start
+          // and that the AI has just (presumably) introduced.
+          //
+          // Scope is opening-turn-only. Mid-scene reveals (reinforcements
+          // arriving, players opening a new door) still rely on the AI
+          // emitting state_changes per the standing rule. Those are the
+          // narrative beats where pacing matters; opening discovery is
+          // scene-setting and should just happen.
+          if (isOpeningTurn) {
+            const tokens = (game_state as { tokens?: Array<Record<string, unknown>> } | null)
+              ?.tokens ?? []
+            const tokenById = new Map<string, Record<string, unknown>>()
+            for (const t of tokens) {
+              if (typeof t?.id === 'string') tokenById.set(t.id, t)
+            }
+
+            // Collect candidate token ids: PCs + every scene/shared NPC
+            // with a token_id field. (NPCs without token_id can't be
+            // server-flipped — they have no token to point at.)
+            const candidateTokenIds = new Set<string>()
+            const tokensField = (gameState: typeof game_state) =>
+              (gameState as { pc_token_ids?: string[] } | null)?.pc_token_ids
+            const pcIdsFromState = tokensField(game_state)
+            // pc_token_ids isn't on game_state directly; derive from tokens
+            // where kind === 'pc'/'PC' to match buildSceneContextBlock's logic.
+            for (const t of tokens) {
+              const kind = typeof t?.kind === 'string' ? t.kind.toLowerCase() : ''
+              if (kind === 'pc' && typeof t.id === 'string') candidateTokenIds.add(t.id)
+            }
+            void pcIdsFromState
+            for (const npc of [...(scene.npcs ?? []), ...(manifest.shared_npcs ?? [])]) {
+              if (typeof npc.token_id === 'string' && npc.token_id.trim() !== '') {
+                candidateTokenIds.add(npc.token_id)
+              }
+            }
+
+            // Skip ids the AI already flipped this turn.
+            const alreadyFlipped = new Set<string>(
+              translatedStateChanges
+                .filter((sc) => sc.field === 'discovered' && typeof sc.entity === 'string')
+                .map((sc) => sc.entity as string),
+            )
+
+            for (const tokenId of candidateTokenIds) {
+              if (alreadyFlipped.has(tokenId)) continue
+              const tk = tokenById.get(tokenId)
+              if (!tk) continue
+              if (tk.discovered === true) continue
+              translatedStateChanges.push({
+                entity: tokenId,
+                field: 'discovered',
+                value: true,
+              })
+              console.warn(
+                `[v2] Opening-turn auto-discovery: flipping "${tokenId}" (AI did not emit state_change for this token).`,
+              )
+            }
+          }
+
           try {
-            await applyStateChanges(session_id, dmResponse.state_changes, {
+            await applyStateChanges(session_id, translatedStateChanges, {
               dmOverrides: dmResponse.dm_overrides,
               sceneTransition: dmResponse.scene_transition,
               attractionPointChanges: dmResponse.attraction_point_changes,

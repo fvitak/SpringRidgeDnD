@@ -35,6 +35,7 @@
   "shared_npcs": [
     {
       "id": "lookout-harold-longfingers",
+      "token_id": "lookout",
       "name": "Harold Longfingers",
       "role": "Lookout (Mill kidnapper guard)",
       "level": 2,

@@ -1850,9 +1850,16 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
             const showCursor = isTyping && isLastEntry && !entry.error
             // System tags are never surfaced verbatim. [Movement] and
             // [RATING_CHANGE] are noise for players; [DM] kicks are author
-            // metadata that gives the scenario away.
+            // metadata that gives the scenario away. [Opening scene] /
+            // [scene_start] is the v2 auto-fire trigger — players never
+            // typed it, so it shouldn't appear as a "player input" line.
             const pi = entry.player_input ?? ''
-            if (pi.startsWith('[Movement]') || pi.startsWith('[RATING_CHANGE]')) {
+            if (
+              pi.startsWith('[Movement]') ||
+              pi.startsWith('[RATING_CHANGE]') ||
+              pi === '[Opening scene]' ||
+              pi === '[scene_start]'
+            ) {
               return null
             }
             const isDmKick = pi.startsWith('[DM]:')
