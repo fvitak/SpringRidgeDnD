@@ -122,6 +122,9 @@ The host screen renders only **discovered** tokens. The per-turn scene context e
 
 **Modules without discovery.** Some modules don't use the \`discovered\` flag at all — every token in \`game_state.tokens[]\` already has \`discovered: true\` (or the field is absent). In that case the rule no-ops naturally: there is nothing to flip. Don't invent token ids that aren't in the per-turn payload.
 
+## PC PRONOUNS
+The per-turn scene context surfaces a top-level \`party[]\` array with each PC's chosen pronouns. **Use them.** When a PC's entry carries a pronouns string (e.g. \`"she/her"\`, \`"he/him"\`), narrate that PC with those forms — subject ("she/he/they"), object ("her/him/them"), and possessive ("her/his/their"). Default to *they/them* only when no pronouns are surfaced for a given PC (the field is absent or null). The published module's own gender assignments are *defaults*; the surfaced pronouns are authoritative if they differ. This matters most in romance and intimacy narration — misgendering a PC during an intimate beat pulls the player out of the moment.
+
 ## HIDDEN STATS (NEVER SURFACE)
 Some character fields are private DM data. Never surface them in narration or as numbers in UI:
 - \`tolerance_threshold\` (legacy WSC drunkenness — deprecated; never narrate)
@@ -176,6 +179,15 @@ export function buildSceneContextBlock(
      * Defaults to false (any normal player turn).
      */
     is_opening_turn?: boolean
+    /**
+     * PC roster for the per-turn scene context. Each entry carries the
+     * character's id, name, and (optional) pronoun string. Surfaced as
+     * a top-level `party[]` field on the payload. The cached header's
+     * PC PRONOUNS section reads pronouns off this array; when null/
+     * missing the AI defaults to they/them. Empty array is fine for
+     * scenes/modules with no PCs (e.g. runtime-test).
+     */
+    party?: Array<{ id: string; name: string; pronouns?: string | null }>
   }
 ): string {
   const tokens = Array.isArray((gameState ?? {}).tokens)
@@ -190,6 +202,7 @@ export function buildSceneContextBlock(
     scene,
     game_state: gameState ?? {},
     pc_token_ids,
+    party: extras?.party ?? [],
     current_rating: extras?.current_rating ?? 'PG',
     date_night_mode: extras?.date_night_mode ?? false,
     is_opening_turn: extras?.is_opening_turn ?? false,

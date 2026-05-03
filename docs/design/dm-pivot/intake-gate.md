@@ -37,7 +37,10 @@ header, plain body.
 > rolled his Pet Peeves, and seen his First Impression, the morning
 > begins.
 
-(Names swap by which PC is unfinished. Single source of truth.)
+(Pronouns are read off `PartyMember.pronouns` — Wynn = `she/her`, Tarric =
+`he/him`, hardcoded from the Blackthorn PDF. State B above shows the
+Tarric-incomplete branch; in the Wynn-incomplete branch, swap names and
+use *she/her/her*. UI fallback for NULL pronouns is *they/them*.)
 
 ### State C — final player is mid-intake (just hit Step 4 or 5)
 

@@ -119,6 +119,12 @@ interface PartyMember {
   tolerance_threshold: number
   slot: number
   position: string | null
+  /**
+   * Hardcoded pronouns string ("she/her", "he/him", "they/them"). Null
+   * for characters in modules without pronoun data — UI falls back to
+   * "they/them" via pronounParts().
+   */
+  pronouns?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -168,13 +174,19 @@ interface SceneNPC {
 // interpolated from actual character_name. See docs/design/dm-pivot/intake-gate.md.
 // ---------------------------------------------------------------------------
 
+interface IntakeGatePCRef {
+  id: string
+  character_name: string
+  pronouns?: string | null
+}
+
 interface IntakeGateCardProps {
   /** Players who haven't completed intake at all (status: not_started). */
-  unfinishedSlots: Array<{ id: string; character_name: string }>
+  unfinishedSlots: IntakeGatePCRef[]
   /** The single mid-intake player, if any (some progress but not complete). */
-  inProgressSlot: { id: string; character_name: string } | null
+  inProgressSlot: IntakeGatePCRef | null
   /** Players who are complete — used to name the "ready" partner in State B. */
-  finishedSlots: Array<{ id: string; character_name: string }>
+  finishedSlots: IntakeGatePCRef[]
   /** Set true when the gate is fading out so we can play the 300ms fade. */
   dismissing: boolean
 }
@@ -194,27 +206,28 @@ function IntakeGateCard({
 
   if (inProgressSlot && unfinishedSlots.length === 0) {
     // State C — final player mid-intake.
+    const p = pronounParts(inProgressSlot.pronouns)
     header = 'Almost there.'
     body = (
       <>
-        {inProgressSlot.character_name} is finishing up. Give {hePronoun()} the
-        room — we&rsquo;ll start the moment {hePronoun()} lands on{' '}
-        {hisPronoun()} sheet.
+        {inProgressSlot.character_name} is finishing up. Give {p.object} the
+        room — we&rsquo;ll start the moment {p.subject} lands on {p.possessive}{' '}
+        sheet.
       </>
     )
   } else if (unfinishedSlots.length === 1 && finishedSlots.length >= 1) {
     // State B — one PC done, one not.
     const ready = finishedSlots[0]
     const waiting = unfinishedSlots[0]
+    const p = pronounParts(waiting.pronouns)
     header = 'Almost there.'
     body = (
       <>
         {ready.character_name} is ready. I&rsquo;m still waiting on{' '}
-        {waiting.character_name} — tap {hisPronoun()} chip on the right and
-        pass {himPronoun()} the QR if you haven&rsquo;t yet. Once{' '}
-        {hePronoun()}&rsquo;s chosen {hisPronoun()} Turn-ons, rolled{' '}
-        {hisPronoun()} Pet Peeves, and seen {hisPronoun()} First Impression,
-        the morning begins.
+        {waiting.character_name} — tap {p.possessive} chip on the right and
+        pass {p.object} the QR if you haven&rsquo;t yet. Once {p.subject}
+        &rsquo;s chosen {p.possessive} Turn-ons, rolled {p.possessive} Pet
+        Peeves, and seen {p.possessive} First Impression, the morning begins.
       </>
     )
   } else {
@@ -257,12 +270,23 @@ function IntakeGateCard({
   )
 }
 
-// Pronoun helpers — kept neutral; copy generalizes for any 2-PC romance
-// module. We don't know each PC's pronoun in the UI layer (it's not on the
-// PartyMember shape), so we use "they/them" — reads cleanly in all cases.
-function hePronoun() { return 'them' }
-function himPronoun() { return 'them' }
-function hisPronoun() { return 'their' }
+// Pronoun helpers. The party route now surfaces a `pronouns` string per PC
+// (hardcoded from the Blackthorn PDF: Wynn = she/her, Tarric = he/him).
+// pronounParts() splits a "subject/object" string into the three forms the
+// gate copy needs (subject / object / possessive). Falls back to they/them
+// when the PartyMember has no pronouns set (NULL on WSC characters or any
+// future module without pronoun data).
+function pronounParts(input: string | null | undefined): {
+  subject: string
+  object: string
+  possessive: string
+} {
+  const raw = (input ?? '').toLowerCase().trim()
+  if (raw.startsWith('she')) return { subject: 'she', object: 'her', possessive: 'her' }
+  if (raw.startsWith('he/')) return { subject: 'he', object: 'him', possessive: 'his' }
+  // Default — they/them. Used for NULL pronouns and explicit they/them.
+  return { subject: 'they', object: 'them', possessive: 'their' }
+}
 
 // ---------------------------------------------------------------------------
 // Sidebar intake pip — small status indicator next to a PC chip on Date Night.
@@ -2165,10 +2189,10 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
           {!loadingHistory && log.length === 0 && intakeGateActive && (() => {
             const finished = party
               .filter((m) => intakeStatus[m.id]?.complete)
-              .map((m) => ({ id: m.id, character_name: m.character_name }))
+              .map((m) => ({ id: m.id, character_name: m.character_name, pronouns: m.pronouns }))
             const incomplete = party
               .filter((m) => !intakeStatus[m.id]?.complete)
-              .map((m) => ({ id: m.id, character_name: m.character_name }))
+              .map((m) => ({ id: m.id, character_name: m.character_name, pronouns: m.pronouns }))
             const inProgress =
               incomplete.length === 1 &&
               intakeStatus[incomplete[0].id] &&

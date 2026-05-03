@@ -10,11 +10,22 @@
 import type { ComputedCharacter } from '@/lib/character/compute-character'
 
 type BlackthornTemplate = Omit<ComputedCharacter, 'session_id' | 'slot' | 'player_name' | 'character_name'>
-  & { suggestedName: string }
+  & {
+    suggestedName: string
+    /**
+     * Hardcoded pronouns from the Blackthorn PDF (Wynn = she/her,
+     * Tarric = he/him). Surfaced to the AI per-turn scene context and
+     * to the host-screen intake gate copy. Optional so future templates
+     * (or non-romance modules) can leave it undefined → AI defaults to
+     * they/them.
+     */
+    pronouns?: string
+  }
 
 export const BLACKTHORN_TEMPLATES: Record<'wynn' | 'tarric', BlackthornTemplate> = {
   wynn: {
     suggestedName: 'Wynn',
+    pronouns: 'she/her',
     class: 'wizard', // closest of our four base classes — stand-in for Sorcerer
     race: 'human',
     level: 4,
@@ -52,6 +63,7 @@ export const BLACKTHORN_TEMPLATES: Record<'wynn' | 'tarric', BlackthornTemplate>
   },
   tarric: {
     suggestedName: 'Tarric',
+    pronouns: 'he/him',
     class: 'fighter', // closest of our four base classes — stand-in for Ranger
     race: 'human',
     level: 4,

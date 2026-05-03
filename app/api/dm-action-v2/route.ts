@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
   let dateNightMode = false
   let currentRating = 'PG'
   let sessionModuleId: string | null = null
+  let partyForPrompt: Array<{ id: string; name: string; pronouns?: string | null }> = []
   try {
     const supabase = getSupabase()
     const { data: sessRow } = await supabase
@@ -129,6 +130,24 @@ export async function POST(req: NextRequest) {
       dateNightMode = Boolean(sessRow.date_night_mode)
       currentRating = (sessRow.current_rating as string | null) ?? 'PG'
       sessionModuleId = (sessRow.module_id as string | null) ?? null
+    }
+
+    // Pull PC pronouns + names so the per-turn scene context can surface
+    // them. The module-runner header's PC PRONOUNS section reads off this
+    // array; missing/null pronouns default to they/them. We keep this in
+    // the same try/catch — if it fails, we send an empty `party[]` and
+    // the AI falls back gracefully.
+    const { data: charRows } = await supabase
+      .from('characters')
+      .select('id, character_name, pronouns')
+      .eq('session_id', session_id)
+      .order('slot')
+    if (Array.isArray(charRows)) {
+      partyForPrompt = charRows.map((row) => ({
+        id: row.id as string,
+        name: (row.character_name as string | null) ?? '',
+        pronouns: (row.pronouns as string | null) ?? null,
+      }))
     }
   } catch (err) {
     console.error('[v2] Failed to fetch session metadata:', err)
@@ -234,6 +253,7 @@ export async function POST(req: NextRequest) {
       current_rating: currentRating,
       date_night_mode: dateNightMode,
       is_opening_turn: isOpeningTurn,
+      party: partyForPrompt,
     }
   )
 
