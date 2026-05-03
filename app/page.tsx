@@ -1848,27 +1848,31 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
           {log.map((entry, i) => {
             const isLastEntry = i === log.length - 1
             const showCursor = isTyping && isLastEntry && !entry.error
-            // System tags are never surfaced verbatim. [Movement] and
-            // [RATING_CHANGE] are noise for players; [DM] kicks are author
-            // metadata that gives the scenario away. [Opening scene] /
-            // [scene_start] is the v2 auto-fire trigger — players never
-            // typed it, so it shouldn't appear as a "player input" line.
+            // System tags fall into two categories:
+            //
+            // 1. Fully hidden (return null): purely meta entries with no
+            //    player-meaningful narration. [Movement] and [RATING_CHANGE]
+            //    are pure side-channel signals.
+            // 2. Hide the input prefix only: entries whose player_input is
+            //    a system trigger but whose narration is the actual content
+            //    the player needs to see. [Opening scene] / [scene_start]
+            //    is the v2 auto-fire — the player didn't type it, so don't
+            //    show "> [Opening scene]" — but the AI's opening narration
+            //    is the most important narration in the session and MUST
+            //    render. Same pattern as [DM] kicks.
             const pi = entry.player_input ?? ''
-            if (
-              pi.startsWith('[Movement]') ||
-              pi.startsWith('[RATING_CHANGE]') ||
-              pi === '[Opening scene]' ||
-              pi === '[scene_start]'
-            ) {
+            if (pi.startsWith('[Movement]') || pi.startsWith('[RATING_CHANGE]')) {
               return null
             }
+            const isOpeningSentinel = pi === '[Opening scene]' || pi === '[scene_start]'
             const isDmKick = pi.startsWith('[DM]:')
+            const hideInputLine = isOpeningSentinel || isDmKick
             const displayInput = isDmKick
               ? renderDmKickHeader(pi)
               : pi
             return (
               <div key={i} className="space-y-2">
-                {!isDmKick && (
+                {!hideInputLine && (
                   <p className="text-gray-400 text-sm">
                     <span className="mr-2 text-gray-600">&gt;</span>
                     {displayInput}
