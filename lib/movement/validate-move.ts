@@ -15,6 +15,17 @@ export interface MapToken {
   size?: number
   discovered?: boolean
   placed?: boolean
+  /**
+   * Per-token visual flag. true ⇒ token renders at reduced opacity on the
+   * host map only (reads as "behind the building's walls/roof").
+   * false / undefined ⇒ full opacity. Sidebar surfaces stay full-opacity
+   * regardless. Phase 1 has no host-side toggle UI; the AI may emit
+   * `{ field: 'is_indoor', value: <bool> }` state_changes (e.g. Tarric
+   * climbing through the back window) — see TOKEN_FIELDS in
+   * lib/db/apply-state-changes.ts. Pure visual hint; does not affect
+   * movement validation.
+   */
+  is_indoor?: boolean
 }
 
 export interface CharacterMoveState {

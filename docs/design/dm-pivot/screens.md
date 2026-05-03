@@ -9,6 +9,10 @@ because we describe — Engineering implements.
 > Read together with `flows.md` and `copy.md`. Map widget anatomy is
 > already covered in [`SCENARIO-MAP-MOVEMENT-PLAN.md`](../SCENARIO-MAP-MOVEMENT-PLAN.md);
 > we don't redo it here.
+>
+> Related: the **romance intake gate** (action-box state when one or both
+> PCs haven't completed intake on Blackthorn) lives in
+> [`intake-gate.md`](./intake-gate.md).
 
 ---
 

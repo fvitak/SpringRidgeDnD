@@ -19,6 +19,13 @@ const GAME_STATE_FIELDS = new Set([
 
 const TOKEN_FIELDS = new Set([
   'discovered',
+  // Visual disambiguation flag for top-down maps. The AI doesn't yet have a
+  // prompt rule telling it to manage this — host-side defaults come from
+  // the seed migration (20260501000003_token_is_indoor.sql) — but the apply
+  // path is wired so a future story (e.g. "Tarric climbs through the back
+  // window into Room 1") can flip it cleanly via state_changes. See
+  // lib/movement/validate-move.ts MapToken.is_indoor for the visual semantics.
+  'is_indoor',
 ])
 
 const CHARACTER_FIELDS = new Set([

@@ -99,6 +99,9 @@ export async function POST(req: NextRequest) {
           tolerance_threshold: tmpl.tolerance_threshold,
           drinks_consumed: tmpl.drinks_consumed,
           personality_traits: tmpl.personality_traits,
+          // Hardcoded pronouns from the Blackthorn PDF (PIV pronouns task).
+          // NULL on templates without pronouns → AI defaults to they/them.
+          pronouns: tmpl.pronouns ?? null,
         }
       })
       const { error: charErr } = await supabase.from('characters').insert(rows)

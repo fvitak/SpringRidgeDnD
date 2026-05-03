@@ -12,6 +12,13 @@ export interface PartyMember {
   tolerance_threshold: number
   slot: number
   position: string | null
+  /**
+   * Hardcoded pronouns string (e.g. "she/her", "he/him"). Nullable —
+   * NULL ⇒ host UI / AI fall back to neutral they/them. Public to the
+   * partner; the romance privacy gate sits on `character_romance` rows,
+   * not on this column.
+   */
+  pronouns: string | null
 }
 
 export async function GET(
@@ -28,7 +35,7 @@ export async function GET(
     const supabase = getSupabase()
     const { data, error } = await supabase
       .from('characters')
-      .select('id, character_name, class, hp, max_hp, conditions, drinks_consumed, tolerance_threshold, slot, position')
+      .select('id, character_name, class, hp, max_hp, conditions, drinks_consumed, tolerance_threshold, slot, position, pronouns')
       .eq('session_id', id)
       .order('slot')
 

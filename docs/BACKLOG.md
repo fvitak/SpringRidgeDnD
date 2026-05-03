@@ -131,6 +131,15 @@ collection, split-party tracking, spoiler protection, metaphor frequency.
 
 ---
 
+## Future polish (post-playtest, no sprint yet)
+
+| ID     | Story                                                                                                | Pts | Status  |
+| ------ | ---------------------------------------------------------------------------------------------------- | --- | ------- |
+| POL-13 | Combat-AP observer rolls — when a PC crits/fumbles in line of sight of the partner, AI rolls the d20 reaction chart behind the screen and narrates the result transparently with the cheeky-meta voice ("rolled a 5; she was busy parrying"). Also rolls matching Turn-on/Pet-Peeve dice. AI-rolled (per the *players-roll-for-intentional-acts* ADR — observer reactions are ambient narrative adjudication). | 5   | Pending |
+| POL-14 | Floor / elevation visual indicator for tokens — Old Mill has a Roof + ground floor + Loft. Today all tokens render on the same map plane, which makes "Harold on the roof" visually overlap with characters placed inside Room 1/Room 2. Frank flagged in 2026-05-03 playtest. UX direction needed. Simplest viable approach: per-token location badge ("Roof" / "Room 2" / "Outside") shown beneath the chip. Heavier proper solution: floor switcher tab + per-floor tokens. Decide before Manor scenes (Scenarios 2/3 have multi-floor maps and this becomes worse there). | TBD | Pending |
+
+---
+
 ## Grooming notes for the PM agent
 
 - Sprint 4 is over its original point budget (~44 vs ~35). Either scope
