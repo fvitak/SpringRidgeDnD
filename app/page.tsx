@@ -4,8 +4,38 @@ import { useState, useEffect, useRef, useCallback, KeyboardEvent, Suspense } fro
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import QRCode from 'qrcode'
+import { createClient } from '@supabase/supabase-js'
 import Map, { type SceneData } from './components/Map'
 import type { MapToken } from '@/lib/movement/validate-move'
+
+// ---------------------------------------------------------------------------
+// Romance intake gate (Date Night opening-narration block)
+// ---------------------------------------------------------------------------
+
+/** Per-PC romance intake status — fetched from /romance/status?viewer=<id>. */
+interface IntakeStatus {
+  has_turn_ons: boolean
+  has_pet_peeves: boolean
+  has_first_impression: boolean
+  complete: boolean
+}
+
+/** Tri-state pip displayed next to a PC chip in the sidebar. */
+type IntakePip = 'not_started' | 'in_progress' | 'complete'
+
+function pipFromStatus(s: IntakeStatus | undefined): IntakePip {
+  if (!s) return 'not_started'
+  if (s.complete) return 'complete'
+  const any = s.has_turn_ons || s.has_pet_peeves || s.has_first_impression
+  return any ? 'in_progress' : 'not_started'
+}
+
+function getRealtimeClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !anonKey) return null
+  return createClient(url, anonKey)
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -131,6 +161,147 @@ interface SceneNPC {
   location: string
 }
 
+// ---------------------------------------------------------------------------
+// Intake Gate Card — replaces the auto-fire opening narration on Date Night
+// sessions until both PCs have completed romance intake. Three copy states
+// (A: neither done, B: one done, C: final player mid-intake). Names are
+// interpolated from actual character_name. See docs/design/dm-pivot/intake-gate.md.
+// ---------------------------------------------------------------------------
+
+interface IntakeGateCardProps {
+  /** Players who haven't completed intake at all (status: not_started). */
+  unfinishedSlots: Array<{ id: string; character_name: string }>
+  /** The single mid-intake player, if any (some progress but not complete). */
+  inProgressSlot: { id: string; character_name: string } | null
+  /** Players who are complete — used to name the "ready" partner in State B. */
+  finishedSlots: Array<{ id: string; character_name: string }>
+  /** Set true when the gate is fading out so we can play the 300ms fade. */
+  dismissing: boolean
+}
+
+function IntakeGateCard({
+  unfinishedSlots,
+  inProgressSlot,
+  finishedSlots,
+  dismissing,
+}: IntakeGateCardProps) {
+  // Determine state:
+  //   C — exactly one PC has any progress and the rest are complete
+  //   B — exactly one PC is fully unfinished, the other is complete
+  //   A — neither PC has finished
+  let header: string
+  let body: React.ReactNode
+
+  if (inProgressSlot && unfinishedSlots.length === 0) {
+    // State C — final player mid-intake.
+    header = 'Almost there.'
+    body = (
+      <>
+        {inProgressSlot.character_name} is finishing up. Give {hePronoun()} the
+        room — we&rsquo;ll start the moment {hePronoun()} lands on{' '}
+        {hisPronoun()} sheet.
+      </>
+    )
+  } else if (unfinishedSlots.length === 1 && finishedSlots.length >= 1) {
+    // State B — one PC done, one not.
+    const ready = finishedSlots[0]
+    const waiting = unfinishedSlots[0]
+    header = 'Almost there.'
+    body = (
+      <>
+        {ready.character_name} is ready. I&rsquo;m still waiting on{' '}
+        {waiting.character_name} — tap {hisPronoun()} chip on the right and
+        pass {himPronoun()} the QR if you haven&rsquo;t yet. Once{' '}
+        {hePronoun()}&rsquo;s chosen {hisPronoun()} Turn-ons, rolled{' '}
+        {hisPronoun()} Pet Peeves, and seen {hisPronoun()} First Impression,
+        the morning begins.
+      </>
+    )
+  } else {
+    // State A — neither PC has finished. Name both for warmth.
+    const names = unfinishedSlots.map((p) => p.character_name)
+    const joined =
+      names.length === 2
+        ? `${names[0]} and ${names[1]}`
+        : names.join(', ')
+    header = 'Hold the curtain a moment.'
+    body = (
+      <>
+        {joined} haven&rsquo;t told me what makes their hearts move yet. Tap a
+        name in the party rail — there&rsquo;s a QR code waiting. Each player
+        scans on their phone and picks three Turn-ons, rolls their Pet Peeves,
+        and sees their First Impression of the other. Then I can begin.
+      </>
+    )
+  }
+
+  return (
+    <div
+      data-state={dismissing ? 'dismissing' : 'active'}
+      role="status"
+      aria-live="polite"
+      className={`relative mx-auto max-w-[520px] rounded-2xl border border-amber-600/60 bg-gray-900/80 px-6 py-5 shadow-lg shadow-amber-900/10 transition-opacity duration-300 ${
+        dismissing ? 'opacity-0' : 'opacity-100'
+      }`}
+    >
+      <p className="text-amber-200 italic text-base font-semibold leading-snug mb-2">
+        {header}
+      </p>
+      <p className="text-gray-200 text-sm leading-relaxed">{body}</p>
+      {/* Soft right-pointing chip toward the party rail (no button). */}
+      <div className="absolute bottom-3 right-4 flex items-center gap-1 text-xs text-amber-300/70">
+        <span className="italic">party rail</span>
+        <span aria-hidden>→</span>
+      </div>
+    </div>
+  )
+}
+
+// Pronoun helpers — kept neutral; copy generalizes for any 2-PC romance
+// module. We don't know each PC's pronoun in the UI layer (it's not on the
+// PartyMember shape), so we use "they/them" — reads cleanly in all cases.
+function hePronoun() { return 'them' }
+function himPronoun() { return 'them' }
+function hisPronoun() { return 'their' }
+
+// ---------------------------------------------------------------------------
+// Sidebar intake pip — small status indicator next to a PC chip on Date Night.
+// Hover/title text is required for DESIGN-SYSTEM.md icon-with-label rule.
+// ---------------------------------------------------------------------------
+
+function IntakePipBadge({ pip }: { pip: IntakePip }) {
+  const tooltip =
+    pip === 'complete' ? 'ready' : pip === 'in_progress' ? 'in progress' : 'setup'
+
+  if (pip === 'complete') {
+    return (
+      <span
+        title={tooltip}
+        aria-label={`Intake ${tooltip}`}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-pink-500 text-gray-950 text-[10px] font-bold leading-none flex-shrink-0"
+      >
+        ✓
+      </span>
+    )
+  }
+  if (pip === 'in_progress') {
+    return (
+      <span
+        title={tooltip}
+        aria-label={`Intake ${tooltip}`}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-pink-400 bg-gradient-to-r from-pink-500 to-pink-500/0 animate-pulse flex-shrink-0"
+      />
+    )
+  }
+  return (
+    <span
+      title={tooltip}
+      aria-label={`Intake ${tooltip}`}
+      className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-dashed border-pink-400/70 flex-shrink-0"
+    />
+  )
+}
+
 function PartySidebar({
   sessionId,
   onInsertName,
@@ -141,6 +312,8 @@ function PartySidebar({
   onStartPlace,
   onStopPlace,
   onOpenDmChat,
+  intakeStatus,
+  showIntakePips,
 }: {
   sessionId: string
   onInsertName: (name: string) => void
@@ -151,6 +324,10 @@ function PartySidebar({
   onStartPlace: (tokenId: string) => void
   onStopPlace: () => void
   onOpenDmChat: () => void
+  /** Per-character intake status, keyed by character_id. Undefined ⇒ not started. */
+  intakeStatus: Record<string, IntakeStatus | undefined>
+  /** Date Night ON ⇒ render the pip in each PC chip. */
+  showIntakePips: boolean
 }) {
   const [party, setParty] = useState<PartyMember[]>([])
   const [npcs, setNpcs] = useState<SceneNPC[]>([])
@@ -243,20 +420,25 @@ function PartySidebar({
             onClick={() => onShowQR(member)}
             title="Click to show player QR code"
           >
-            {/* Name + intox */}
+            {/* Name + intox + intake pip (Date Night only) */}
             <div className="flex items-center justify-between gap-1">
               <span className="text-sm font-semibold text-gray-100 truncate leading-tight group-hover:text-purple-400 transition-colors">
                 {member.character_name}
               </span>
-              {intox && (
-                <span
-                  className="text-sm leading-none flex-shrink-0"
-                  title={intox}
-                  aria-label={intox}
-                >
-                  {INTOX_ICON[intox]}
-                </span>
-              )}
+              <span className="flex items-center gap-1 flex-shrink-0">
+                {showIntakePips && (
+                  <IntakePipBadge pip={pipFromStatus(intakeStatus[member.id])} />
+                )}
+                {intox && (
+                  <span
+                    className="text-sm leading-none"
+                    title={intox}
+                    aria-label={intox}
+                  >
+                    {INTOX_ICON[intox]}
+                  </span>
+                )}
+              </span>
             </div>
 
             {/* Class */}
@@ -1314,6 +1496,17 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   const [placingTokenId, setPlacingTokenId] = useState<string | null>(null)
   const [showPlacementBanner, setShowPlacementBanner] = useState(false)
   const [dmChatOpen, setDmChatOpen] = useState(false)
+  // Romance intake gate (Date Night only). Per-character status keyed by id;
+  // populated on mount via /romance/status fetches and refreshed via Realtime
+  // postgres_changes on `character_romance`. The auto-fire useEffect waits on
+  // this to flip "all complete" before firing [scene_start].
+  const [intakeStatus, setIntakeStatus] = useState<Record<string, IntakeStatus | undefined>>({})
+  const [intakeLoaded, setIntakeLoaded] = useState(false)
+  const [gateDismissing, setGateDismissing] = useState(false)
+  // Idempotency guards — Realtime can fire multiple events on the same tick,
+  // and React 18 strict-mode double-mounts effects in dev. Both are kept in
+  // refs so a re-render never resets them.
+  const sceneStartFiredRef = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const prevIsTypingRef = useRef(false)
@@ -1429,6 +1622,113 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     loadHistory()
   }, [sessionId])
 
+  // ---------------------------------------------------------------------
+  // Romance intake gate — bootstrap + Realtime
+  // ---------------------------------------------------------------------
+  // Date Night sessions block the auto-fire opening narration until both
+  // PCs have completed romance intake (Turn-ons + Pet Peeves + First
+  // Impression). Without intake, the AI has no AP, no Turn-ons, no Pet
+  // Peeves to reference — performing without half its instrument.
+  //
+  // Bootstrap: one-shot GET /romance/status?viewer=<id> per PC on mount
+  // (and after any reconnect). The status route requires viewer === id;
+  // the host has the character_ids from /sessions/<id>/players, so we
+  // pass each id as its own viewer. This is a self-consistent read; not
+  // a privacy violation.
+  //
+  // Realtime: subscribe to `character_romance` row changes. On each
+  // update, refetch the affected character's status. When all PCs flip
+  // to complete the auto-fire useEffect picks it up and fires
+  // [scene_start] exactly once (sceneStartFiredRef guard).
+  //
+  // Date Night OFF: gate is bypassed entirely. The auto-fire useEffect
+  // checks `session.date_night_mode` and skips intake checks when off.
+  useEffect(() => {
+    let cancelled = false
+
+    // Skip the intake-status bootstrap on non-Date-Night sessions —
+    // there's nothing to gate on.
+    if (!session.date_night_mode) {
+      setIntakeLoaded(true)
+      return
+    }
+
+    async function refetchOne(charId: string) {
+      try {
+        const res = await fetch(
+          `/api/characters/${charId}/romance/status?viewer=${charId}`,
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+        const s = data?.status as IntakeStatus | undefined
+        if (!s) return
+        setIntakeStatus((prev) => ({ ...prev, [charId]: s }))
+      } catch {
+        // silent — Realtime will reconcile
+      }
+    }
+
+    async function bootstrap() {
+      try {
+        const res = await fetch(`/api/sessions/${sessionId}/players`)
+        if (!res.ok) {
+          if (!cancelled) setIntakeLoaded(true)
+          return
+        }
+        const players = (await res.json()) as Array<{ id: string; character_name: string }>
+        await Promise.all(players.map((p) => refetchOne(p.id)))
+      } finally {
+        if (!cancelled) setIntakeLoaded(true)
+      }
+    }
+
+    bootstrap()
+
+    // Realtime — listen broadly on character_romance and filter by the
+    // characters in this session client-side. Mirrors the pattern in
+    // app/player/[id]/_components/RomanceSection.tsx.
+    const supabase = getRealtimeClient()
+    let channel: ReturnType<NonNullable<ReturnType<typeof getRealtimeClient>>['channel']> | null =
+      null
+    if (supabase) {
+      channel = supabase
+        .channel(`host-intake-${sessionId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'character_romance' },
+          (payload) => {
+            const row = (payload.new ?? payload.old) as { character_id?: string }
+            if (!row?.character_id) return
+            // Only refetch if this character belongs to our session.
+            // We hold their ids in intakeStatus keys after bootstrap.
+            // Always refetch on first event since bootstrap may still
+            // be inflight; the endpoint is cheap and idempotent.
+            refetchOne(row.character_id)
+          },
+        )
+        .subscribe()
+    }
+
+    return () => {
+      cancelled = true
+      if (supabase && channel) supabase.removeChannel(channel)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, session.date_night_mode])
+
+  // Derived gate flag — true ⇒ block auto-fire AND render the gate card.
+  // Only Date Night module-runner sessions gate. Non-Date-Night and legacy
+  // WSC skip it entirely. We require at least 2 PCs known (party loaded)
+  // before letting the gate clear, so a flicker between empty bootstrap
+  // and complete state can't sneak through.
+  const intakeGateActive = (() => {
+    if (!session.date_night_mode) return false
+    if (!intakeLoaded) return true // hold until bootstrap finishes
+    if (party.length === 0) return true // hold until party loads
+    return party.some((m) => !intakeStatus[m.id]?.complete)
+  })()
+
   // Auto-fire the scenario's opening kick on first turn.
   //
   // Two paths:
@@ -1442,10 +1742,20 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
   //   2. Legacy WSC / random-encounter sessions (`module_id` NULL) — keep
   //      the legacy text kick. These rely on the cached WSC system prompt
   //      and have no scene script to reach for.
+  //
+  // Date Night gate: if `session.date_night_mode === true`, this effect
+  // also waits on `intakeGateActive === false` before firing. Realtime
+  // updates re-trigger the effect via state changes; sceneStartFiredRef
+  // guards against double-fire when both PCs commit on the same tick.
   // Keep WSC kick strings in sync with lib/scenarios/registry.ts.
   useEffect(() => {
     if (loadingHistory) return
     if (log.length > 0 || isStreaming || isTyping) return
+    // Date Night gate — block until both PCs finish intake.
+    if (intakeGateActive) return
+    // Idempotency — fire exactly once even if the effect re-runs from a
+    // realtime tick that arrives mid-stream.
+    if (sceneStartFiredRef.current) return
 
     // Module-runner path — sentinel kick.
     // Defensive fallback: if a session has scenario_id = 'blackthorn-clan'
@@ -1455,6 +1765,11 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
     const isModuleRunner =
       Boolean(session.module_id) || session.scenario_id === 'blackthorn-clan'
     if (isModuleRunner) {
+      sceneStartFiredRef.current = true
+      // If the gate just cleared, play a 300ms fade on the card before
+      // the first read-aloud beat replaces it. handleSubmit kicks the
+      // network request immediately; the fade runs in parallel.
+      if (session.date_night_mode) setGateDismissing(true)
       handleSubmit('[scene_start]')
       return
     }
@@ -1471,8 +1786,11 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
       if (session.name === 'The Wild Sheep Chase') kick = kicks['wild-sheep-chase']
       else if (session.name.startsWith('Random Encounter')) kick = kicks['random-encounter']
     }
-    if (kick) handleSubmit(kick)
-  }, [loadingHistory, restartKey]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (kick) {
+      sceneStartFiredRef.current = true
+      handleSubmit(kick)
+    }
+  }, [loadingHistory, restartKey, intakeGateActive]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom whenever log changes
   useEffect(() => {
@@ -1839,7 +2157,39 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
             <p className="text-gray-500 text-sm italic">Loading session history...</p>
           )}
 
-          {!loadingHistory && log.length === 0 && !isBusy && (
+          {/* Date Night intake gate — replaces the auto-fire opening
+              narration until both PCs finish romance intake. The card
+              stays mounted while `intakeGateActive` is true. When the
+              gate clears, sceneStartFiredRef trips and the gate fades
+              over 300ms while the first beat streams in. */}
+          {!loadingHistory && log.length === 0 && intakeGateActive && (() => {
+            const finished = party
+              .filter((m) => intakeStatus[m.id]?.complete)
+              .map((m) => ({ id: m.id, character_name: m.character_name }))
+            const incomplete = party
+              .filter((m) => !intakeStatus[m.id]?.complete)
+              .map((m) => ({ id: m.id, character_name: m.character_name }))
+            const inProgress =
+              incomplete.length === 1 &&
+              intakeStatus[incomplete[0].id] &&
+              !intakeStatus[incomplete[0].id]!.complete &&
+              (intakeStatus[incomplete[0].id]!.has_turn_ons ||
+                intakeStatus[incomplete[0].id]!.has_pet_peeves ||
+                intakeStatus[incomplete[0].id]!.has_first_impression)
+                ? incomplete[0]
+                : null
+            const unfinishedSlots = inProgress ? [] : incomplete
+            return (
+              <IntakeGateCard
+                unfinishedSlots={unfinishedSlots}
+                inProgressSlot={inProgress}
+                finishedSlots={finished}
+                dismissing={gateDismissing}
+              />
+            )
+          })()}
+
+          {!loadingHistory && log.length === 0 && !isBusy && !intakeGateActive && (
             <p className="text-gray-600 text-sm italic">
               The adventure awaits. What do you do?
             </p>
@@ -1945,6 +2295,8 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
           onStartPlace={setPlacingTokenId}
           onStopPlace={() => setPlacingTokenId(null)}
           onOpenDmChat={() => setDmChatOpen(true)}
+          intakeStatus={intakeStatus}
+          showIntakePips={Boolean(session.date_night_mode)}
         />
       </div>
 
