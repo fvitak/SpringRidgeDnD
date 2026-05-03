@@ -399,6 +399,11 @@ export default function Map({
             : t.name.split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
           // Scale the token text size with cell size so it stays legible.
           const fontSize = Math.max(9, Math.floor(cellSize * 0.32))
+          // is_indoor: render at reduced opacity on the map only so the chip
+          // reads as "behind the building's walls/roof" on a top-down render.
+          // The visual difference IS the signal — sidebar chips and other
+          // surfaces stay full-opacity for readability (Phase 1 brief).
+          const isIndoor = t.is_indoor === true
           return (
             <button
               key={t.id}
@@ -413,6 +418,7 @@ export default function Map({
                 fontSize,
                 background: tokenColor,
                 borderColor: isFriendly ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.4)',
+                opacity: isIndoor ? 0.6 : 1,
               }}
               title={`${t.name} — HP ${(t as MapToken & { hp?: number }).hp ?? '?'}/${(t as MapToken & { max_hp?: number }).max_hp ?? '?'}`}
             >
