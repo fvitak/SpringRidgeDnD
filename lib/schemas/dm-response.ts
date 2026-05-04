@@ -116,6 +116,21 @@ const combatStateSchema = z.object({
    * the advance, so a retry of the same response is a no-op.
    */
   last_advance_event_log_id: z.string().uuid().optional(),
+  /**
+   * AI-emitted explicit turn-end signal (POL-15-21-22d). Set true on the
+   * response that resolves the current creature's combat turn — PC or
+   * NPC — when the creature has finished using its action / movement /
+   * bonus action and the next initiative entry should take over.
+   *
+   * The v2 route advances the initiative pointer when EITHER this flag
+   * is true OR the legacy heuristic fires (`action_used: true` on the
+   * active PC's name). The OR semantics let PC turns keep working when
+   * the AI emits `action_used` but forgets the explicit flag, while the
+   * explicit flag handles NPC turns (which never have `action_used` for
+   * a PC) reliably. See lib/db/initiative.ts for the idempotent advance
+   * itself; the AI never writes the pointer directly.
+   */
+  advance_to_next_turn: z.boolean().optional(),
 });
 
 // ---------------------------------------------------------------------------

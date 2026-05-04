@@ -528,13 +528,22 @@ export async function POST(req: NextRequest) {
           }
 
           // Auto-advance initiative when combat is active and the AI's
-          // response signaled turn-end (POL-15-21-22b).
+          // response signaled turn-end (POL-15-21-22b + POL-15-21-22d).
           //
-          // Today the signal is implicit: if any state_change flipped
-          // `action_used: true` for the currently-active PC (per the
-          // state-truth snapshot we built before this turn), treat the
-          // turn as over. Future (POL-15-21-22d): explicit
-          // `combat_state.advance_to_next_turn` boolean from the AI.
+          // OR semantics — the pointer advances when EITHER signal fires:
+          //
+          //   1. EXPLICIT (POL-15-21-22d): `combat_state.advance_to_next_turn === true`.
+          //      The AI sets this when it's done narrating the current
+          //      creature's full turn (PC or NPC) and is about to hand
+          //      off to the next initiative entry. This is the cleaner
+          //      long-term signal — works for NPC turns where the
+          //      implicit heuristic below cannot fire.
+          //
+          //   2. IMPLICIT (POL-15-21-22b legacy heuristic): any
+          //      `state_change` flips `action_used: true` for the
+          //      currently-active PC. Kept as a safety net for PC turns
+          //      where the AI emits `action_used` but forgets to set
+          //      the explicit flag.
           //
           // The advance is idempotent — keyed on the event_log row id —
           // so a network retry of the same response cannot double-skip
@@ -545,18 +554,24 @@ export async function POST(req: NextRequest) {
             eventLogRow?.id
           ) {
             const activeName = stateTruth.active_character_name.toLowerCase()
-            const turnEnded = translatedStateChanges.some((sc) => {
+            const explicitAdvance =
+              dmResponse.combat_state?.advance_to_next_turn === true
+            const implicitAdvance = translatedStateChanges.some((sc) => {
               if (sc.field !== 'action_used') return false
               if (sc.value !== true) return false
               if (typeof sc.entity !== 'string') return false
               return sc.entity.toLowerCase() === activeName
             })
+            const turnEnded = explicitAdvance || implicitAdvance
             if (turnEnded) {
+              const trigger = explicitAdvance
+                ? (implicitAdvance ? 'explicit+implicit' : 'explicit')
+                : 'implicit'
               try {
                 const result = await advanceInitiative(session_id, eventLogRow.id)
                 if (result) {
                   console.log(
-                    `[v2] Initiative advanced: round ${result.new_round}, index ${result.new_active_index} → "${result.new_active_character_name}"${result.reaction_reset ? ' (round wrap; reactions reset)' : ''}`,
+                    `[v2] Initiative advanced (${trigger}): round ${result.new_round}, index ${result.new_active_index} → "${result.new_active_character_name}"${result.reaction_reset ? ' (round wrap; reactions reset)' : ''}`,
                   )
                 }
               } catch (err) {
