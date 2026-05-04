@@ -118,7 +118,34 @@ export async function POST(req: NextRequest) {
   let dateNightMode = false
   let currentRating = 'PG'
   let sessionModuleId: string | null = null
-  let partyForPrompt: Array<{ id: string; name: string; pronouns?: string | null }> = []
+  type PartyEntry = {
+    id: string
+    name: string
+    pronouns?: string | null
+    sheet?: {
+      class: string
+      race: string
+      level: number
+      hp: number
+      max_hp: number
+      ac: number
+      stats: Record<string, number>
+      saves: Record<string, number>
+      skills: Record<string, number>
+      weapons: unknown[]
+      spells_known: unknown[]
+      class_features: unknown[]
+      feature_uses: Record<string, unknown>
+      prof_bonus: number
+      spell_save_dc: number | null
+      spell_attack_bonus: number | null
+      spellcasting_ability: string | null
+      spell_slots: Record<string, number>
+      conditions: string[]
+      inventory: unknown[]
+    } | null
+  }
+  let partyForPrompt: PartyEntry[] = []
   try {
     const supabase = getSupabase()
     const { data: sessRow } = await supabase
@@ -132,22 +159,79 @@ export async function POST(req: NextRequest) {
       sessionModuleId = (sessRow.module_id as string | null) ?? null
     }
 
-    // Pull PC pronouns + names so the per-turn scene context can surface
-    // them. The module-runner header's PC PRONOUNS section reads off this
-    // array; missing/null pronouns default to they/them. We keep this in
-    // the same try/catch — if it fails, we send an empty `party[]` and
-    // the AI falls back gracefully.
+    // Pull each PC's full computed sheet so the per-turn scene context
+    // can surface it under `party[].sheet`. The module-runner header's
+    // CHARACTER SHEETS section reads off this object — class/level/HP/
+    // AC/stats/saves/skills/weapons/spells/features/slots/etc. — so the
+    // AI never has to ask the host "what's your Stealth modifier?"
+    // (POL-23b). Missing/null `sheet` is fine for legacy rows pre-
+    // Cluster-A; the AI falls back to its prompt-baked class knowledge.
+    //
+    // No derivations happen here — all sheet computation lives in
+    // lib/character/compute-character.ts (POL-23a). This route only
+    // SELECTs and forwards.
     const { data: charRows } = await supabase
       .from('characters')
-      .select('id, character_name, pronouns')
+      .select(
+        [
+          'id',
+          'character_name',
+          'pronouns',
+          'class',
+          'race',
+          'level',
+          'hp',
+          'max_hp',
+          'ac',
+          'stats',
+          'saving_throws',
+          'skills',
+          'weapons',
+          'spells_known',
+          'class_features',
+          'feature_uses',
+          'prof_bonus',
+          'spell_save_dc',
+          'spell_attack_bonus',
+          'spellcasting_ability',
+          'spell_slots',
+          'conditions',
+          'inventory',
+        ].join(', ')
+      )
       .eq('session_id', session_id)
       .order('slot')
     if (Array.isArray(charRows)) {
-      partyForPrompt = charRows.map((row) => ({
-        id: row.id as string,
-        name: (row.character_name as string | null) ?? '',
-        pronouns: (row.pronouns as string | null) ?? null,
-      }))
+      partyForPrompt = charRows.map((row): PartyEntry => {
+        const r = row as unknown as Record<string, unknown>
+        return {
+          id: r.id as string,
+          name: (r.character_name as string | null) ?? '',
+          pronouns: (r.pronouns as string | null) ?? null,
+          sheet: {
+            class: (r.class as string | null) ?? '',
+            race: (r.race as string | null) ?? '',
+            level: (r.level as number | null) ?? 1,
+            hp: (r.hp as number | null) ?? 0,
+            max_hp: (r.max_hp as number | null) ?? 0,
+            ac: (r.ac as number | null) ?? 10,
+            stats: (r.stats as Record<string, number> | null) ?? {},
+            saves: (r.saving_throws as Record<string, number> | null) ?? {},
+            skills: (r.skills as Record<string, number> | null) ?? {},
+            weapons: (r.weapons as unknown[] | null) ?? [],
+            spells_known: (r.spells_known as unknown[] | null) ?? [],
+            class_features: (r.class_features as unknown[] | null) ?? [],
+            feature_uses: (r.feature_uses as Record<string, unknown> | null) ?? {},
+            prof_bonus: (r.prof_bonus as number | null) ?? 2,
+            spell_save_dc: (r.spell_save_dc as number | null) ?? null,
+            spell_attack_bonus: (r.spell_attack_bonus as number | null) ?? null,
+            spellcasting_ability: (r.spellcasting_ability as string | null) ?? null,
+            spell_slots: (r.spell_slots as Record<string, number> | null) ?? {},
+            conditions: (r.conditions as string[] | null) ?? [],
+            inventory: (r.inventory as unknown[] | null) ?? [],
+          },
+        }
+      })
     }
   } catch (err) {
     console.error('[v2] Failed to fetch session metadata:', err)

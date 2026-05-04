@@ -50,6 +50,17 @@ Worked example for an attack roll plus damage:
 
 Use 'beat' (not 'meet or beat') in player-facing copy — 5e RAW is meet-or-beat (≥), but "beat 13" is what new players expect. The SRD reference below is honest about RAW; the explainer voice is friendlier.
 
+## CHARACTER SHEETS — never ask for what you can read
+Each PC's full sheet is in \`party[].sheet\` on the per-turn payload. Class, level, HP, AC, stats, saves, skills, **weapons** (each with attack bonus, damage dice, properties), **spells_known** (full descriptions, components, durations, save abilities), **class_features** (with uses_per and max_uses), **prof_bonus**, **spell_save_dc**, **spell_attack_bonus**, **spell_slots** (remaining), **feature_uses**, **conditions**, **inventory**.
+
+When a player asks "what's my Stealth modifier?" or "what spells do I have?" or "what's my AC?" — **the answer is on their sheet, surface it directly.** Do not ask the host to read it off paper. The sheet is authoritative; the player's printed handout is decoration.
+
+Worked example:
+> Player: *"Can I cast Charm Person?"*
+> AI: *"You can — it's in your spells_known at 1st level, costs one of your three remaining 1st-level slots, save DC 13 (Wisdom), 30-foot range, single humanoid target."*
+
+Anti-pattern (the playtest failure mode): asking *"What's your DC?"* / *"What weapons are you carrying?"* / *"What's your Stealth modifier?"* These are all on the sheet. Asking is the bug shape.
+
 ## COMMUNICATE PC CONSTRAINTS
 When a PC has unusual physical or mechanical constraints from the scene state — chained, gagged, bound, blinded, paralyzed, polymorphed, restrained, unconscious, asleep, manacled, drowning, on fire, etc. — state them plainly in your first narration of that PC's turn. **Tell the player what they CAN do.** Do not let them flail at impossible actions and then quietly ignore those actions in narration.
 
@@ -181,13 +192,44 @@ export function buildSceneContextBlock(
     is_opening_turn?: boolean
     /**
      * PC roster for the per-turn scene context. Each entry carries the
-     * character's id, name, and (optional) pronoun string. Surfaced as
-     * a top-level `party[]` field on the payload. The cached header's
-     * PC PRONOUNS section reads pronouns off this array; when null/
-     * missing the AI defaults to they/them. Empty array is fine for
-     * scenes/modules with no PCs (e.g. runtime-test).
+     * character's id, name, (optional) pronoun string, and an optional
+     * full character `sheet` (POL-23b). Surfaced as a top-level
+     * `party[]` field on the payload. The cached header's PC PRONOUNS
+     * section reads pronouns off this array; when null/missing the AI
+     * defaults to they/them. The CHARACTER SHEETS section reads the
+     * `sheet` sub-object — when present, the AI surfaces stats /
+     * weapons / spells / DCs directly instead of asking the host.
+     * Empty array is fine for scenes/modules with no PCs
+     * (e.g. runtime-test); empty/missing `sheet` is fine for legacy
+     * rows pre-Cluster-A.
      */
-    party?: Array<{ id: string; name: string; pronouns?: string | null }>
+    party?: Array<{
+      id: string
+      name: string
+      pronouns?: string | null
+      sheet?: {
+        class: string
+        race: string
+        level: number
+        hp: number
+        max_hp: number
+        ac: number
+        stats: Record<string, number>
+        saves: Record<string, number>
+        skills: Record<string, number>
+        weapons: unknown[]
+        spells_known: unknown[]
+        class_features: unknown[]
+        feature_uses: Record<string, unknown>
+        prof_bonus: number
+        spell_save_dc: number | null
+        spell_attack_bonus: number | null
+        spellcasting_ability: string | null
+        spell_slots: Record<string, number>
+        conditions: string[]
+        inventory: unknown[]
+      } | null
+    }>
   }
 ): string {
   const tokens = Array.isArray((gameState ?? {}).tokens)
