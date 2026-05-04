@@ -102,6 +102,19 @@ export async function POST(req: NextRequest) {
           // Hardcoded pronouns from the Blackthorn PDF (PIV pronouns task).
           // NULL on templates without pronouns → AI defaults to they/them.
           pronouns: tmpl.pronouns ?? null,
+          // POL-23a (Cluster A) — full sheet completeness. Cluster B reads
+          // these per-turn; POL-23c renders them on the mobile sheet;
+          // POL-25 (action picker) chips off them. Defaults match the
+          // migration's column defaults so non-Blackthorn modules without
+          // these fields stay no-op.
+          weapons: tmpl.weapons ?? [],
+          spells_known: tmpl.spells_known ?? [],
+          class_features: tmpl.class_features ?? [],
+          feature_uses: tmpl.feature_uses ?? {},
+          prof_bonus: tmpl.prof_bonus ?? 2,
+          spell_save_dc: tmpl.spell_save_dc ?? null,
+          spell_attack_bonus: tmpl.spell_attack_bonus ?? null,
+          spellcasting_ability: tmpl.spellcasting_ability ?? null,
         }
       })
       const { error: charErr } = await supabase.from('characters').insert(rows)
