@@ -30,6 +30,8 @@ import { parseDMResponse } from '@/lib/schemas/dm-response'
 import { getEventLog, appendEventLog } from '@/lib/db/event-log'
 import { getGameState } from '@/lib/db/game-state'
 import { applyStateChanges } from '@/lib/db/apply-state-changes'
+import { buildStateTruth } from '@/lib/db/state-truth'
+import { advanceInitiative } from '@/lib/db/initiative'
 import { getSupabase } from '@/lib/supabase'
 import {
   loadManifest,
@@ -329,7 +331,23 @@ export async function POST(req: NextRequest) {
     { role: 'user', content: userMessageText },
   ]
 
-  // 4. Build the split system prompt.
+  // 4. Build the per-turn state-truth snapshot (POL-15-21-22b). Pure
+  //    read; never mutates. Returns the minimal `{ active: false,
+  //    party_status: [] }` stub when combat is inactive — emitting the
+  //    field unconditionally is fine and gives POL-15-21-22d's prompt
+  //    rule a stable place to read from.
+  let stateTruth: Awaited<ReturnType<typeof buildStateTruth>> = {
+    active: false,
+    initiative_order: [],
+    party_status: [],
+  }
+  try {
+    stateTruth = await buildStateTruth(session_id)
+  } catch (err) {
+    console.error('[v2] Failed to build state truth:', err)
+  }
+
+  // 5. Build the split system prompt.
   const sceneBlock = buildSceneContextBlock(
     scene,
     (game_state as Record<string, unknown> | null) ?? null,
@@ -338,6 +356,7 @@ export async function POST(req: NextRequest) {
       date_night_mode: dateNightMode,
       is_opening_turn: isOpeningTurn,
       party: partyForPrompt,
+      state_truth: stateTruth,
     }
   )
 
@@ -358,7 +377,7 @@ export async function POST(req: NextRequest) {
   // emitting attribution into the response, without re-loading).
   void manifest
 
-  // 5. Stream and validate.
+  // 6. Stream and validate.
   const encoder = new TextEncoder()
   const stream = new ReadableStream({
     async start(controller) {
@@ -389,7 +408,14 @@ export async function POST(req: NextRequest) {
           // re-fire guard is `event_log.length === 0`, which becomes false
           // the moment any entry lands here.
           const loggedInput = isOpeningTurn ? '[Opening scene]' : player_input.trim()
-          await appendEventLog(session_id, loggedInput, dmResponse)
+          // Capture the inserted row's id — used below as the idempotency
+          // nonce for the initiative-advance helper (POL-15-21-22b).
+          let eventLogRow: { id: string } | null = null
+          try {
+            eventLogRow = await appendEventLog(session_id, loggedInput, dmResponse)
+          } catch (err) {
+            console.error('[v2] Failed to append event log:', err)
+          }
 
           // Defensive ID translation for `discovered` state_changes.
           //
@@ -499,6 +525,44 @@ export async function POST(req: NextRequest) {
             })
           } catch (err) {
             console.error('[v2] Failed to apply state changes:', err)
+          }
+
+          // Auto-advance initiative when combat is active and the AI's
+          // response signaled turn-end (POL-15-21-22b).
+          //
+          // Today the signal is implicit: if any state_change flipped
+          // `action_used: true` for the currently-active PC (per the
+          // state-truth snapshot we built before this turn), treat the
+          // turn as over. Future (POL-15-21-22d): explicit
+          // `combat_state.advance_to_next_turn` boolean from the AI.
+          //
+          // The advance is idempotent — keyed on the event_log row id —
+          // so a network retry of the same response cannot double-skip
+          // a turn. See lib/db/initiative.ts.
+          if (
+            stateTruth.active &&
+            stateTruth.active_character_name &&
+            eventLogRow?.id
+          ) {
+            const activeName = stateTruth.active_character_name.toLowerCase()
+            const turnEnded = translatedStateChanges.some((sc) => {
+              if (sc.field !== 'action_used') return false
+              if (sc.value !== true) return false
+              if (typeof sc.entity !== 'string') return false
+              return sc.entity.toLowerCase() === activeName
+            })
+            if (turnEnded) {
+              try {
+                const result = await advanceInitiative(session_id, eventLogRow.id)
+                if (result) {
+                  console.log(
+                    `[v2] Initiative advanced: round ${result.new_round}, index ${result.new_active_index} → "${result.new_active_character_name}"${result.reaction_reset ? ' (round wrap; reactions reset)' : ''}`,
+                  )
+                }
+              } catch (err) {
+                console.error('[v2] Failed to advance initiative:', err)
+              }
+            }
           }
 
           enqueue(JSON.stringify({ done: true, response: dmResponse }))

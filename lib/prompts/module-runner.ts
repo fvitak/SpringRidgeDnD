@@ -20,6 +20,7 @@
 
 import { SRD_CHEAT_SHEET } from '@/lib/prompts/srd-cheat-sheet'
 import type { SceneContext } from '@/lib/schemas/scene-context'
+import type { CombatStateTruth } from '@/lib/db/state-truth'
 
 // ---------------------------------------------------------------------------
 // The cached header. Stable across turns — DO NOT mutate per-turn.
@@ -230,6 +231,26 @@ export function buildSceneContextBlock(
         inventory: unknown[]
       } | null
     }>
+    /**
+     * Authoritative combat-state snapshot built server-side from
+     * `game_state.combat_state` + `character_combat_turn` ledger
+     * (POL-15-21-22b). When combat is active, surfaces:
+     *   - round, active_initiative_index, active_character_name
+     *   - initiative_order[] enriched with per-PC ledger fields
+     *     (action_used / bonus_action_used / reaction_used /
+     *     movement_used) for THIS round
+     *   - party_status[] for at-a-glance HP / conditions / spell slots
+     *   - snapshot_seq cache-bust nonce
+     *
+     * When combat is inactive, the minimal `{ active: false,
+     * party_status: [] }` shape — the AI reads `party[].sheet` for HP /
+     * spells outside combat.
+     *
+     * Read by the cached header's "STATE TRUTH" rule (POL-15-21-22d
+     * adds the prompt rule; the field is surfaced now so the AI has it
+     * available for the rule that's coming next).
+     */
+    state_truth?: CombatStateTruth
   }
 ): string {
   const tokens = Array.isArray((gameState ?? {}).tokens)
@@ -248,6 +269,10 @@ export function buildSceneContextBlock(
     current_rating: extras?.current_rating ?? 'PG',
     date_night_mode: extras?.date_night_mode ?? false,
     is_opening_turn: extras?.is_opening_turn ?? false,
+    // POL-15-21-22b — authoritative combat-state snapshot. Always
+    // emitted when present; absent (rather than null) when the caller
+    // didn't pass it so older callers' payloads stay unchanged.
+    ...(extras?.state_truth ? { state_truth: extras.state_truth } : {}),
   }
   return `## CURRENT SCENE CONTEXT (per-turn — ground truth, do not contradict)\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``
 }

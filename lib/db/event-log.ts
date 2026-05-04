@@ -2,21 +2,33 @@ import { supabase } from '@/lib/supabase'
 
 /**
  * Appends a row to the event_log table for the given session.
+ *
+ * Returns the inserted row's id so callers (e.g. the v2 route) can use it
+ * as an idempotency nonce for downstream side-effects keyed off this
+ * specific AI response — the initiative-advance helper uses it as
+ * `last_advance_event_log_id` so a retry of the same response cannot
+ * double-advance (POL-15-21-22b).
  */
 export async function appendEventLog(
   sessionId: string,
   playerInput: string,
   aiResponse: unknown
-): Promise<void> {
-  const { error } = await supabase.from('event_log').insert({
-    session_id: sessionId,
-    player_input: playerInput,
-    ai_response: aiResponse,
-  })
+): Promise<{ id: string } | null> {
+  const { data, error } = await supabase
+    .from('event_log')
+    .insert({
+      session_id: sessionId,
+      player_input: playerInput,
+      ai_response: aiResponse,
+    })
+    .select('id')
+    .maybeSingle()
 
   if (error) {
     throw new Error(`Failed to append event log: ${error.message}`)
   }
+
+  return data ?? null
 }
 
 /**
