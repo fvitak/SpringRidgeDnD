@@ -13,9 +13,18 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { xpForNextLevel, levelForXp, CLASS_FEATURES_BY_LEVEL, hasASI, SPELL_SLOTS_BY_LEVEL } from '@/lib/data/level-up-rules'
-import { CLASSES } from '@/lib/data/character-options'
+import { CLASSES, RACES } from '@/lib/data/character-options'
 import RomanceIntake from './_components/RomanceIntake'
 import RomanceSection from './_components/RomanceSection'
+import CombatHeaderStrip from './_components/CombatHeaderStrip'
+import SavesSection from './_components/SavesSection'
+import SkillsSection from './_components/SkillsSection'
+import WeaponsSection, { type WeaponEntry } from './_components/WeaponsSection'
+import SpellsSection, { type SpellEntry } from './_components/SpellsSection'
+import ClassFeaturesSection, {
+  type ClassFeatureEntry,
+  type FeatureUseEntry,
+} from './_components/ClassFeaturesSection'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +63,18 @@ interface Character {
   death_saves_failures: number
   is_stable: boolean
   rating_preference?: string
+  // ---- POL-23a Cluster A additions ----
+  // These come from migration 20260503000000_character_sheet_completeness.sql.
+  // Older sessions whose rows haven't been backfilled get column defaults
+  // (empty arrays / null DCs), and the corresponding section is hidden.
+  weapons?: WeaponEntry[]
+  spells_known?: SpellEntry[]
+  class_features?: ClassFeatureEntry[]
+  feature_uses?: Record<string, FeatureUseEntry>
+  prof_bonus?: number
+  spell_save_dc?: number | null
+  spell_attack_bonus?: number | null
+  spellcasting_ability?: 'INT' | 'WIS' | 'CHA' | null
 }
 
 interface SessionInfo {
@@ -76,15 +97,6 @@ const ABILITY_LABELS: { key: string; label: string }[] = [
   { key: 'cha', label: 'CHA' },
 ]
 
-const SAVING_THROW_LABELS: { key: string; label: string }[] = [
-  { key: 'str', label: 'Strength' },
-  { key: 'dex', label: 'Dexterity' },
-  { key: 'con', label: 'Constitution' },
-  { key: 'int', label: 'Intelligence' },
-  { key: 'wis', label: 'Wisdom' },
-  { key: 'cha', label: 'Charisma' },
-]
-
 // Which saving throws are proficient per class (matching compute-character.ts)
 const CLASS_SAVING_THROWS: Record<string, string[]> = {
   fighter: ['str', 'con'],
@@ -105,10 +117,6 @@ function formatMod(score: number): string {
   return mod >= 0 ? `+${mod}` : `${mod}`
 }
 
-function signedNum(n: number): string {
-  return n >= 0 ? `+${n}` : `${n}`
-}
-
 function hpColorClass(hp: number, maxHp: number): string {
   if (maxHp === 0) return 'bg-gray-500'
   const pct = hp / maxHp
@@ -127,6 +135,24 @@ function hpTextColorClass(hp: number, maxHp: number): string {
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+// Speed lookup — POL-23c §A. The `characters` row doesn't store base speed
+// directly today (it's race-derived); we read it off RACES. Defaults to 30
+// for any unknown race id rather than blowing up the strip.
+function getSpeed(raceId: string): number {
+  return RACES.find((r) => r.id === raceId)?.speed ?? 30
+}
+
+// Fallback proficiency bonus — used only when a row predates the POL-23a
+// migration backfill (prof_bonus column added with default 2). We trust the
+// stored value first; this mirror of the SRD table is the safety net.
+function profBonusFromLevel(level: number): number {
+  if (level >= 17) return 6
+  if (level >= 13) return 5
+  if (level >= 9) return 4
+  if (level >= 5) return 3
+  return 2
 }
 
 // ---------------------------------------------------------------------------
@@ -927,15 +953,12 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
   }
 
   const hpPct = character.max_hp > 0 ? Math.max(0, (character.hp / character.max_hp) * 100) : 0
-  const isSpellcaster = SPELLCASTER_CLASSES.includes(character.class)
   const proficientSaves = CLASS_SAVING_THROWS[character.class] ?? []
 
-  // Sort skills alphabetically; proficient ones highlighted
-  const sortedSkills = Object.entries(character.skills).sort(([a], [b]) => a.localeCompare(b))
-
-  // Proficient skills: saving throw bonus > ability mod means proficiency was added
-  // We re-derive proficiency by checking class skills stored in CLASS_SKILLS
-  // (same logic as compute-character: proficient if class grants +2 on top of ability mod)
+  // Proficient skills: re-derived by checking class skills stored in CLASS_SKILLS
+  // (same mapping as compute-character.ts: proficient if class grants +2 on top
+  // of ability mod). Future expertise lists should plug into SkillsSection's
+  // expertSkills prop — the dot-pattern is wired for both already.
   const CLASS_SKILLS: Record<string, string[]> = {
     fighter: ['Athletics', 'Intimidation'],
     cleric: ['Medicine', 'Religion'],
@@ -943,12 +966,6 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
     wizard: ['Arcana', 'History'],
   }
   const proficientSkillSet = new Set(CLASS_SKILLS[character.class] ?? [])
-
-  // Spell slots: { "1": remainingSlots } — the AI decrements these via state_changes
-  // when spells are cast. We compare against MAX_SPELL_SLOTS to show spent (empty) pips.
-  const spellSlotEntries = Object.entries(character.spell_slots).sort(
-    ([a], [b]) => Number(a) - Number(b)
-  )
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 pb-12">
@@ -1033,19 +1050,21 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           />
         ) : null}
 
-        {/* Romance section (PIV-07) — only when Date Night Mode is on AND
-            the intake flow has been completed. The privacy gate at the
-            API layer is the source of truth for what's visible. */}
-        {sessionInfo?.date_night_mode && intakeStatus?.complete && intakeStatus.romance_enabled ? (
-          <RomanceSection
-            characterId={character.id}
-            sessionId={character.session_id}
-          />
-        ) : null}
+        {/* ---------------------------------------------------------------- */}
+        {/* 2. Combat header strip (POL-23c §A) — AC/HP/Speed/Init/Prof.        */}
+        {/*    Glanceable single row at the top. Tap any cell to see context.   */}
+        {/* ---------------------------------------------------------------- */}
+        <CombatHeaderStrip
+          ac={character.ac}
+          hp={character.hp}
+          maxHp={character.max_hp}
+          speed={getSpeed(character.race)}
+          initiativeBonus={Math.floor(((character.stats.dex ?? 10) - 10) / 2)}
+          profBonus={character.prof_bonus ?? profBonusFromLevel(character.level)}
+        />
 
-        {/* ---------------------------------------------------------------- */}
-        {/* 2. HP section                                                      */}
-        {/* ---------------------------------------------------------------- */}
+        {/* HP detail bar — tactile read for current HP state. Kept after the */}
+        {/* strip because the strip is glance-only; the bar visualizes pct.    */}
         <section className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
           <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">
             Hit Points
@@ -1062,9 +1081,7 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           </div>
         </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* 2b. Death saving throws (only when HP = 0 and not stable)          */}
-        {/* ---------------------------------------------------------------- */}
+        {/* Death saving throws (only when HP = 0 and not stable) */}
         {character.hp === 0 && !character.is_stable && (
           <section className="bg-gray-900 rounded-2xl p-4 border-2 border-red-700">
             <p className="text-xs font-semibold uppercase tracking-widest text-red-400 mb-3">
@@ -1115,9 +1132,64 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           </section>
         )}
 
+        {/* Romance section (PIV-07) — only when Date Night Mode is on AND
+            the intake flow has been completed. The privacy gate at the
+            API layer is the source of truth for what's visible. */}
+        {sessionInfo?.date_night_mode && intakeStatus?.complete && intakeStatus.romance_enabled ? (
+          <RomanceSection
+            characterId={character.id}
+            sessionId={character.session_id}
+          />
+        ) : null}
+
+        {/* Conditions (POL-23c order #4) */}
+        {character.conditions && character.conditions.length > 0 && (
+          <section className="bg-gray-900 rounded-2xl p-4 border border-red-900/60">
+            <p className="text-xs font-semibold uppercase tracking-widest text-red-400 mb-2">
+              Conditions
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {character.conditions.map((cond) => (
+                <span
+                  key={cond}
+                  className="px-3 py-1 rounded-full bg-red-900/60 border border-red-700 text-red-200 text-sm font-medium"
+                >
+                  {cond}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ---------------------------------------------------------------- */}
-        {/* 3. Core stats row (3×2 grid)                                       */}
+        {/* Spells (POL-23c §D) — header / slot pips / spell list.            */}
+        {/* Hidden when spells_known is empty (non-casters / un-backfilled).  */}
         {/* ---------------------------------------------------------------- */}
+        {character.spells_known && character.spells_known.length > 0 && (
+          <SpellsSection
+            spellsKnown={character.spells_known}
+            spellSlots={character.spell_slots ?? {}}
+            spellSlotsMax={getMaxSpellSlots(character.class, character.level)}
+            spellSaveDc={character.spell_save_dc ?? null}
+            spellAttackBonus={character.spell_attack_bonus ?? null}
+            spellcastingAbility={character.spellcasting_ability ?? null}
+          />
+        )}
+
+        {/* Weapons (POL-23c §C). Hidden when weapons array is empty. */}
+        {character.weapons && character.weapons.length > 0 && (
+          <WeaponsSection weapons={character.weapons} />
+        )}
+
+        {/* Class Features (POL-23c §E). Hidden when class_features is empty. */}
+        {character.class_features && character.class_features.length > 0 && (
+          <ClassFeaturesSection
+            classFeatures={character.class_features}
+            featureUses={character.feature_uses ?? {}}
+          />
+        )}
+
+        {/* Ability scores — kept here as a deeper-read companion to the strip. */}
         <section className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
           <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">
             Ability Scores
@@ -1141,156 +1213,22 @@ export default function PlayerPage({ params }: { params: Promise<{ id: string }>
           </div>
         </section>
 
-        {/* ---------------------------------------------------------------- */}
-        {/* 4. AC badge                                                        */}
-        {/* ---------------------------------------------------------------- */}
-        <section className="flex justify-center">
-          <div className="flex flex-col items-center bg-gray-900 border-2 border-purple-600 rounded-2xl px-8 py-4">
-            <span className="text-xs font-bold uppercase tracking-widest text-purple-500">
-              Armor Class
-            </span>
-            <span className="text-5xl font-extrabold text-purple-300 mt-1">{character.ac}</span>
-          </div>
-        </section>
+        {/* Saves (POL-23c §B) — collapsible. */}
+        <SavesSection
+          savingThrows={character.saving_throws}
+          proficientSaves={proficientSaves}
+        />
 
-        {/* ---------------------------------------------------------------- */}
-        {/* 5. Conditions                                                      */}
-        {/* ---------------------------------------------------------------- */}
-        {character.conditions && character.conditions.length > 0 && (
-          <section className="bg-gray-900 rounded-2xl p-4 border border-red-900/60">
-            <p className="text-xs font-semibold uppercase tracking-widest text-red-400 mb-2">
-              Conditions
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {character.conditions.map((cond) => (
-                <span
-                  key={cond}
-                  className="px-3 py-1 rounded-full bg-red-900/60 border border-red-700 text-red-200 text-sm font-medium"
-                >
-                  {cond}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* Skills (POL-23c §B) — collapsible, with tap-to-show math popover. */}
+        <SkillsSection
+          skills={character.skills}
+          proficientSkills={Array.from(proficientSkillSet)}
+          stats={character.stats}
+          profBonus={character.prof_bonus ?? profBonusFromLevel(character.level)}
+        />
 
-        {/* ---------------------------------------------------------------- */}
-        {/* 6. Saving throws                                                   */}
-        {/* ---------------------------------------------------------------- */}
-        <section className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">
-            Saving Throws
-          </p>
-          <div className="space-y-2">
-            {SAVING_THROW_LABELS.map(({ key, label }) => {
-              const isProficient = proficientSaves.includes(key)
-              const value = character.saving_throws[key] ?? 0
-              return (
-                <div key={key} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                        isProficient ? 'bg-purple-400' : 'bg-gray-700 border border-gray-600'
-                      }`}
-                    />
-                    <span className={`text-sm ${isProficient ? 'text-purple-300' : 'text-gray-300'}`}>
-                      {label}
-                    </span>
-                  </div>
-                  <span
-                    className={`text-sm font-mono font-semibold ${
-                      isProficient ? 'text-purple-300' : 'text-gray-400'
-                    }`}
-                  >
-                    {signedNum(value)}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-
-        {/* ---------------------------------------------------------------- */}
-        {/* 7. Skills                                                          */}
-        {/* ---------------------------------------------------------------- */}
-        <section className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">
-            Skills
-          </p>
-          <div className="max-h-64 overflow-y-auto overscroll-contain space-y-2 pr-1">
-            {sortedSkills.map(([skill, value]) => {
-              const isProficient = proficientSkillSet.has(skill)
-              return (
-                <div key={skill} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                        isProficient ? 'bg-purple-400' : 'bg-gray-700 border border-gray-600'
-                      }`}
-                    />
-                    <span className={`text-sm ${isProficient ? 'text-purple-300 font-medium' : 'text-gray-300'}`}>
-                      {skill}
-                    </span>
-                  </div>
-                  <span
-                    className={`text-sm font-mono font-semibold ${
-                      isProficient ? 'text-purple-300' : 'text-gray-400'
-                    }`}
-                  >
-                    {signedNum(value)}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-
-        {/* ---------------------------------------------------------------- */}
-        {/* 8. Inventory                                                       */}
-        {/* ---------------------------------------------------------------- */}
+        {/* Inventory (existing component, unchanged) */}
         <InventoryPanel inventory={character.inventory} characterId={character.id} />
-
-        {/* ---------------------------------------------------------------- */}
-        {/* 9. Spell slots (spellcasters only)                                 */}
-        {/* ---------------------------------------------------------------- */}
-        {isSpellcaster && spellSlotEntries.length > 0 && (
-          <section className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
-            <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 mb-3">
-              Spell Slots
-            </p>
-            <div className="space-y-3">
-              {spellSlotEntries.map(([level, slots]) => {
-                const remaining = Number(slots)
-                const maxSlots = getMaxSpellSlots(character.class, character.level)[level] ?? remaining
-                const spent = maxSlots - remaining
-                return (
-                  <div key={level} className="flex items-center gap-3">
-                    <span className="text-sm text-gray-300 w-16 flex-shrink-0">
-                      Level {level}
-                    </span>
-                    <div className="flex gap-1.5">
-                      {Array.from({ length: remaining }).map((_, i) => (
-                        <span
-                          key={`filled-${i}`}
-                          className="w-5 h-5 rounded-full bg-violet-500 border border-violet-400 inline-block"
-                          title={`Slot ${i + 1} (available)`}
-                        />
-                      ))}
-                      {Array.from({ length: spent }).map((_, i) => (
-                        <span
-                          key={`empty-${i}`}
-                          className="w-5 h-5 rounded-full bg-gray-700 border border-gray-600 inline-block"
-                          title={`Slot ${remaining + i + 1} (spent)`}
-                        />
-                      ))}
-                    </div>
-                    <span className="text-xs text-gray-500 ml-auto">{remaining}/{maxSlots}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )}
 
         {/* XP / level progress */}
         {(() => {

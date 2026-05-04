@@ -45,7 +45,11 @@ export async function GET(
     const { data, error } = await supabase
       .from('characters')
       .select(
-        'id, session_id, character_name, player_name, class, race, level, xp, hp, max_hp, ac, stats, saving_throws, skills, inventory, spell_slots, conditions, drinks_consumed, personality_traits, death_saves_successes, death_saves_failures, is_stable, rating_preference'
+        // POL-23c — include the Cluster A columns added in
+        // 20260503000000_character_sheet_completeness.sql so the mobile sheet
+        // can render weapons / spells / features / DC / attack bonus / etc.
+        // without a second round-trip.
+        'id, session_id, character_name, player_name, class, race, level, xp, hp, max_hp, ac, stats, saving_throws, skills, inventory, spell_slots, conditions, drinks_consumed, personality_traits, death_saves_successes, death_saves_failures, is_stable, rating_preference, weapons, spells_known, class_features, feature_uses, prof_bonus, spell_save_dc, spell_attack_bonus, spellcasting_ability'
       )
       .eq('id', id)
       .single()
