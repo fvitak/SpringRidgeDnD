@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { upsertGameState } from '@/lib/db/game-state'
+import { getOrCreateCombatTurn } from '@/lib/db/combat-turn'
 import { applyApDelta, type ApHistoryEntry } from '@/lib/romance/engine'
 import type { DMOverride, SceneTransition } from '@/lib/schemas/dm-response'
 
@@ -43,6 +44,24 @@ const CHARACTER_FIELDS = new Set([
   'bonus_action_used',
   'reaction_used',
   'concentration',
+  // Cluster B (POL-15-21-22a): movement is ONLY tracked on the new
+  // character_combat_turn ledger — there's no `movement_used` column on
+  // `characters`. The routing path below sees this field, looks up the
+  // active round from `game_state.combat_state.round`, and writes to the
+  // ledger row. If combat is not active, the field is dropped with a warn.
+  'movement_used',
+])
+
+// Action-economy fields that get dual-written to the new
+// `character_combat_turn` ledger (when combat is active) AND the legacy
+// `characters.*` columns (for one release per the LE plan). See
+// DECISIONS.md 2026-05-03 "active_initiative_index ... per-PC ledger
+// table".
+const ACTION_ECONOMY_FIELDS = new Set([
+  'action_used',
+  'bonus_action_used',
+  'reaction_used',
+  'movement_used',
 ])
 
 // ---------------------------------------------------------------------------
@@ -122,6 +141,12 @@ export async function applyStateChanges(
     return
   }
 
+  // Cache the active combat round for action-economy routing. Read once
+  // up-front so we don't hit game_state every change. `null` means
+  // "combat is not active" → action-economy state_changes write only to
+  // legacy `characters.*` columns (no ledger row).
+  const activeCombatRound = await getActiveCombatRound(sessionId)
+
   for (const change of stateChanges ?? []) {
     const { entity, field, value } = change
 
@@ -157,6 +182,35 @@ export async function applyStateChanges(
       // npc_positions is stored as active_npcs JSONB in the DB
       const dbField = field === 'npc_positions' ? 'active_npcs' : field
       gameStateUpdates[dbField] = value
+      continue
+    }
+
+    // -----------------------------------------------------------------------
+    // Route: action-economy fields (dual-write to legacy + new ledger)
+    //
+    // When combat is active, we want the per-round audit trail in
+    // `character_combat_turn`. We also keep populating the legacy
+    // `characters.{action_used,bonus_action_used,reaction_used}` columns
+    // for one release (dual-write per LE plan; drops in a follow-up
+    // migration after a Blackthorn playtest verifies the new path).
+    //
+    // `movement_used` only ever goes to the new ledger — there's no
+    // legacy column to dual-write into.
+    //
+    // Outside combat: action_used/bonus_action_used/reaction_used still
+    // hit the legacy columns (some legacy code paths read them); the
+    // new ledger row is NOT created — there's no round to scope it to.
+    // movement_used outside combat is dropped with a warn (no place
+    // for it).
+    // -----------------------------------------------------------------------
+    if (ACTION_ECONOMY_FIELDS.has(field)) {
+      await applyActionEconomyChange(
+        sessionId,
+        entity,
+        field,
+        value,
+        activeCombatRound,
+      )
       continue
     }
 
@@ -480,4 +534,162 @@ async function resolveRomanceCharacterId(
   }
 
   return null
+}
+
+// ---------------------------------------------------------------------------
+// Action-economy routing helpers (Cluster B, POL-15-21-22a)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the active combat round if combat is currently active for the
+ * session, otherwise null. Used by the apply step to decide whether
+ * action-economy state_changes also write to `character_combat_turn`.
+ *
+ * "Combat is active" = `game_state.combat_state.active === true` AND
+ * `combat_state.round` is a positive integer. If either is missing or
+ * combat is paused/over, returns null and action-economy writes go
+ * only to the legacy `characters.*` columns.
+ */
+async function getActiveCombatRound(sessionId: string): Promise<number | null> {
+  const { data, error } = await supabase
+    .from('game_state')
+    .select('combat_state')
+    .eq('session_id', sessionId)
+    .maybeSingle()
+
+  if (error) {
+    console.warn(
+      `[applyStateChanges] failed to read combat_state for active-round lookup: ${error.message}`,
+    )
+    return null
+  }
+
+  const cs = (data?.combat_state ?? null) as
+    | { active?: boolean; round?: number }
+    | null
+  if (!cs || cs.active !== true) return null
+  if (typeof cs.round !== 'number' || cs.round < 1) return null
+  return Math.trunc(cs.round)
+}
+
+/**
+ * Apply an action-economy state_change. Dual-writes to BOTH the legacy
+ * `characters.{action_used,bonus_action_used,reaction_used}` columns
+ * (for one release per LE plan) AND the new `character_combat_turn`
+ * ledger when combat is active.
+ *
+ * Behaviour matrix:
+ *
+ *   field                 combat_active   legacy column   ledger row
+ *   --------------------  --------------  --------------  ----------
+ *   action_used           true            yes (back-compat)  yes
+ *   action_used           false           yes               no (no round to scope to)
+ *   bonus_action_used     true            yes               yes
+ *   bonus_action_used     false           yes               no
+ *   reaction_used         true            yes               yes
+ *   reaction_used         false           yes               no
+ *   movement_used         true            n/a (no column)   yes
+ *   movement_used         false           n/a               no (warned)
+ *
+ * `entity` is matched against `characters.character_name`
+ * (case-insensitive). Non-PC entities (NPCs in `combat_state.initiative`)
+ * won't resolve and are silently dropped — NPC turn-tracking is out of
+ * scope for this ADR (see DECISIONS.md 2026-05-03).
+ */
+async function applyActionEconomyChange(
+  sessionId: string,
+  entity: string,
+  field: string,
+  value: unknown,
+  activeCombatRound: number | null,
+): Promise<void> {
+  // Resolve to a PC row first. NPCs aren't in the `characters` table so
+  // a missing row here means "this isn't a PC" — drop the change with a
+  // debug-level warn (the same shape as `applyCharacterChange`).
+  const { data: character, error: fetchError } = await supabase
+    .from('characters')
+    .select('id')
+    .eq('session_id', sessionId)
+    .ilike('character_name', entity)
+    .maybeSingle()
+
+  if (fetchError) {
+    console.warn(
+      `[applyStateChanges] failed to look up "${entity}" for action-economy change: ${fetchError.message}`,
+    )
+    return
+  }
+  if (!character) {
+    // Either an NPC (initiative entry) or a typo. NPC action-economy
+    // tracking is out of scope; for typos, the LE-blessed warning is
+    // the right tier.
+    console.warn(
+      `[applyStateChanges] no PC named "${entity}" for action-economy field "${field}" — skipped (NPC turn-tracking is out of scope; see DECISIONS.md 2026-05-03).`,
+    )
+    return
+  }
+
+  const isMovement = field === 'movement_used'
+  const isBoolFlag = !isMovement // action/bonus/reaction are booleans
+
+  // 1. Legacy column write (action/bonus/reaction only).
+  if (isBoolFlag) {
+    if (typeof value !== 'boolean') {
+      console.warn(
+        `[applyStateChanges] expected boolean for "${field}" on "${entity}", got ${typeof value}; coercing.`,
+      )
+    }
+    const { error: legacyErr } = await supabase
+      .from('characters')
+      .update({ [field]: Boolean(value) })
+      .eq('id', character.id)
+    if (legacyErr) {
+      console.warn(
+        `[applyStateChanges] failed to dual-write legacy ${field} for "${entity}": ${legacyErr.message}`,
+      )
+    }
+  }
+
+  // 2. Ledger write — only when combat is active.
+  if (activeCombatRound === null) {
+    if (isMovement) {
+      console.warn(
+        `[applyStateChanges] movement_used emitted for "${entity}" but combat is not active — dropped (no round to scope to).`,
+      )
+    }
+    return
+  }
+
+  let row: Awaited<ReturnType<typeof getOrCreateCombatTurn>>
+  try {
+    row = await getOrCreateCombatTurn(sessionId, character.id, activeCombatRound)
+  } catch (err) {
+    console.warn(
+      `[applyStateChanges] failed to get/create character_combat_turn for "${entity}" round ${activeCombatRound}: ${err instanceof Error ? err.message : String(err)}`,
+    )
+    return
+  }
+
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (isMovement) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      console.warn(
+        `[applyStateChanges] expected number for movement_used on "${entity}", got ${typeof value}: ${String(value)}`,
+      )
+      return
+    }
+    update.movement_used = Math.max(0, Math.trunc(value))
+  } else {
+    update[field] = Boolean(value)
+  }
+
+  const { error: ledgerErr } = await supabase
+    .from('character_combat_turn')
+    .update(update)
+    .eq('id', row.id)
+  if (ledgerErr) {
+    console.warn(
+      `[applyStateChanges] failed to update character_combat_turn for "${entity}" round ${activeCombatRound}: ${ledgerErr.message}`,
+    )
+  }
 }

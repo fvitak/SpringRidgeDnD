@@ -64,10 +64,58 @@ const initiativeEntrySchema = z.object({
   conditions: z.array(z.string()).optional(),
 });
 
+/**
+ * `combatStateSchema` extends across two ownership boundaries:
+ *
+ *   AI-authored (per-turn DM response):
+ *     - `active`, `round`, `initiative[]` — narrative echoes the AI
+ *       writes back into the response. Authoritative HP/conditions
+ *       on PCs live on `characters`; the entries here are decoration
+ *       for the AI's own bookkeeping plus the NPC blob.
+ *
+ *   Server-authored (Cluster B, POL-15-21-22a):
+ *     - `active_initiative_index` — zero-based pointer into
+ *       `initiative[]` for whose turn it is RIGHT NOW. The server
+ *       writes; the AI reads, never writes. Drives the per-turn
+ *       state-truth block and the host-UI action picker.
+ *     - `snapshot_seq` — monotonic counter, bumped by the apply step
+ *       on any combat-relevant write. The next per-turn payload
+ *       reads this to know whether the AI's view of the state is
+ *       fresh.
+ *     - `last_advance_event_log_id` — idempotency nonce stamped by
+ *       the initiative-advance helper (POL-15-21-22b). On retries,
+ *       the helper sees its own nonce and skips advancing.
+ *
+ * The Zod schema accepts all three new fields as optional so AI
+ * responses that don't echo them (the common case) still validate.
+ * See ARCHITECTURE.md §9.2 + DECISIONS.md 2026-05-03.
+ */
 const combatStateSchema = z.object({
   active: z.boolean(),
+  // `round` was historically `z.number().optional()`. We deliberately leave
+  // it loose (no `.int().min(1)`) for back-compat with replayed event-log
+  // entries from WSC sessions that may carry round 0 or non-integer values.
+  // The new fields below are stricter because they're new.
   round: z.number().optional(),
   initiative: z.array(initiativeEntrySchema).optional(),
+  /**
+   * Zero-based index into `initiative[]` indicating whose turn it is
+   * right now. Server-maintained. AI reads; never writes.
+   */
+  active_initiative_index: z.number().int().min(0).optional(),
+  /**
+   * Monotonic counter. Bumped each time the runtime injects a fresh
+   * state-truth checkpoint into the per-turn payload. Lets consumers
+   * (the AI, the host UI) know whether the state-truth they're
+   * holding is current.
+   */
+  snapshot_seq: z.number().int().min(0).optional(),
+  /**
+   * Idempotency nonce for the initiative-advance helper (POL-15-21-22b).
+   * Carries the `event_log.id` UUID of the response that triggered
+   * the advance, so a retry of the same response is a no-op.
+   */
+  last_advance_event_log_id: z.string().uuid().optional(),
 });
 
 // ---------------------------------------------------------------------------
