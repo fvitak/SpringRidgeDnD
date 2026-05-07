@@ -29,7 +29,7 @@ import { NextRequest } from 'next/server'
 import { parseDMResponse } from '@/lib/schemas/dm-response'
 import { getEventLog, appendEventLog } from '@/lib/db/event-log'
 import { getGameState } from '@/lib/db/game-state'
-import { applyStateChanges } from '@/lib/db/apply-state-changes'
+import { applyStateChangesWithCues } from '@/lib/db/apply-state-changes'
 import { buildStateTruth } from '@/lib/db/state-truth'
 import { advanceInitiative } from '@/lib/db/initiative'
 import { getSupabase } from '@/lib/supabase'
@@ -517,12 +517,24 @@ export async function POST(req: NextRequest) {
             }
           }
 
+          // POL-15-21-22c — server-side narration parser fires here.
+          // `applyStateChangesWithCues` parses `dmResponse.narration` for
+          // tier-1 (auto-emit) and tier-2 (warn-only) cues, splices tier-1
+          // cues into the state_changes list when no AI-emitted change
+          // covers the same entity+field, then delegates to the existing
+          // apply step. Tier-2 cues hit `console.warn` for drift
+          // surveillance.
           try {
-            await applyStateChanges(session_id, translatedStateChanges, {
-              dmOverrides: dmResponse.dm_overrides,
-              sceneTransition: dmResponse.scene_transition,
-              attractionPointChanges: dmResponse.attraction_point_changes,
-            })
+            await applyStateChangesWithCues(
+              session_id,
+              dmResponse,
+              {
+                dmOverrides: dmResponse.dm_overrides,
+                sceneTransition: dmResponse.scene_transition,
+                attractionPointChanges: dmResponse.attraction_point_changes,
+              },
+              translatedStateChanges,
+            )
           } catch (err) {
             console.error('[v2] Failed to apply state changes:', err)
           }

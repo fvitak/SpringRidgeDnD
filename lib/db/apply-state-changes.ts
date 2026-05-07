@@ -2,7 +2,13 @@ import { supabase } from '@/lib/supabase'
 import { upsertGameState } from '@/lib/db/game-state'
 import { getOrCreateCombatTurn } from '@/lib/db/combat-turn'
 import { applyApDelta, type ApHistoryEntry } from '@/lib/romance/engine'
-import type { DMOverride, SceneTransition } from '@/lib/schemas/dm-response'
+import type { DMOverride, DMResponse, SceneTransition } from '@/lib/schemas/dm-response'
+import {
+  parseNarrationCues,
+  isCueAlreadyEmitted,
+  type KnownEntities,
+  type ParsedCue,
+} from '@/lib/db/parse-narration-cues'
 
 // ---------------------------------------------------------------------------
 // Field routing constants
@@ -31,6 +37,13 @@ const TOKEN_FIELDS = new Set([
 
 const CHARACTER_FIELDS = new Set([
   'hp',
+  // Cluster B (POL-15-21-22c): hp_delta is the parser's preferred shape
+  // when it auto-emits a damage cue. The parser doesn't know current HP,
+  // so it emits a signed delta (`-7`) and the routing branch below
+  // resolves the actual new HP by reading the row, clamping to [0, max_hp].
+  // Also handles tokens in `game_state.tokens` (NPCs without a characters
+  // row) — same negative-delta semantics.
+  'hp_delta',
   'condition',
   'inventory',
   'spell_slots',
@@ -149,6 +162,23 @@ export async function applyStateChanges(
 
   for (const change of stateChanges ?? []) {
     const { entity, field, value } = change
+
+    // -----------------------------------------------------------------------
+    // Special case: hp_delta — Cluster B (POL-15-21-22c) parser-emitted shape.
+    // The parser doesn't know current HP, so it emits a signed delta. We
+    // route to PCs (characters row) first; if no PC matches, we try NPC
+    // tokens (game_state.combat_state.initiative[]).
+    // -----------------------------------------------------------------------
+    if (field === 'hp_delta') {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        console.warn(
+          `[applyStateChanges] hp_delta for "${entity}" is not a number: ${String(value)}`,
+        )
+        continue
+      }
+      await applyHpDelta(sessionId, entity, value)
+      continue
+    }
 
     // -----------------------------------------------------------------------
     // Special case: position values can be either narrative (string) or
@@ -405,6 +435,234 @@ async function applyCharacterChange(
       `[applyStateChanges] Failed to update ${field} for character "${entity}": ${updateError.message}`
     )
   }
+}
+
+// ---------------------------------------------------------------------------
+// HP delta handler (Cluster B, POL-15-21-22c) — parser-friendly route.
+// ---------------------------------------------------------------------------
+
+/**
+ * Apply a signed HP delta to either a PC (characters row) or an NPC
+ * (token in game_state.combat_state.initiative[]). Reads current HP,
+ * clamps the result to [0, max_hp], writes back the new absolute HP.
+ *
+ * Used by the narration-cue parser when the AI narrates damage but does
+ * not emit a corresponding `hp` state_change. The parser can't compute
+ * the post-damage absolute (it doesn't know the current HP), so it emits
+ * a delta and we resolve it here.
+ *
+ * Match order:
+ *   1. PC by `characters.character_name` (case-insensitive, scoped to session).
+ *   2. NPC by `combat_state.initiative[].name` (case-insensitive).
+ *
+ * If neither resolves, log a warn and drop. The parser only emits cues
+ * for entities it found in `KnownEntities`, so a miss here is unusual.
+ */
+async function applyHpDelta(
+  sessionId: string,
+  entity: string,
+  delta: number,
+): Promise<void> {
+  // 1. Try PC first.
+  const { data: character, error: charErr } = await supabase
+    .from('characters')
+    .select('id, hp, max_hp')
+    .eq('session_id', sessionId)
+    .ilike('character_name', entity)
+    .maybeSingle()
+
+  if (charErr) {
+    console.warn(
+      `[applyStateChanges] hp_delta lookup failed for PC "${entity}": ${charErr.message}`,
+    )
+    // fall through to NPC path
+  }
+
+  if (character) {
+    const currentHp = typeof character.hp === 'number' ? character.hp : 0
+    const maxHp = typeof character.max_hp === 'number' ? character.max_hp : currentHp
+    const newHp = Math.max(0, Math.min(maxHp, currentHp + delta))
+    const { error: updErr } = await supabase
+      .from('characters')
+      .update({ hp: newHp })
+      .eq('id', character.id)
+    if (updErr) {
+      console.warn(
+        `[applyStateChanges] failed to write hp_delta for PC "${entity}": ${updErr.message}`,
+      )
+    }
+    return
+  }
+
+  // 2. Try NPC in combat_state.initiative.
+  const { data: stateRow, error: gsErr } = await supabase
+    .from('game_state')
+    .select('combat_state')
+    .eq('session_id', sessionId)
+    .maybeSingle()
+
+  if (gsErr) {
+    console.warn(
+      `[applyStateChanges] hp_delta NPC lookup failed for "${entity}": ${gsErr.message}`,
+    )
+    return
+  }
+
+  const cs = (stateRow?.combat_state ?? null) as
+    | { initiative?: Array<{ name?: string; hp?: number; max_hp?: number; conditions?: string[] }> }
+    | null
+  if (!cs || !Array.isArray(cs.initiative)) {
+    console.warn(
+      `[applyStateChanges] hp_delta could not resolve "${entity}" — no PC row, no combat_state.initiative.`,
+    )
+    return
+  }
+
+  const idx = cs.initiative.findIndex(
+    (e) => typeof e.name === 'string' && e.name.toLowerCase() === entity.toLowerCase(),
+  )
+  if (idx < 0) {
+    console.warn(
+      `[applyStateChanges] hp_delta could not resolve "${entity}" against PC names or initiative entries.`,
+    )
+    return
+  }
+  const entry = cs.initiative[idx]
+  const currentHp = typeof entry.hp === 'number' ? entry.hp : 0
+  const maxHp = typeof entry.max_hp === 'number' ? entry.max_hp : currentHp
+  const newHp = Math.max(0, Math.min(maxHp, currentHp + delta))
+  const updatedInitiative = cs.initiative.map((e, i) =>
+    i === idx ? { ...e, hp: newHp } : e,
+  )
+  await upsertGameState(sessionId, {
+    combat_state: { ...cs, initiative: updatedInitiative } as unknown,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Cue-aware wrapper (Cluster B, POL-15-21-22c)
+// ---------------------------------------------------------------------------
+
+/**
+ * Apply state changes WITH server-side narration parsing. Wraps
+ * `applyStateChanges` and:
+ *
+ *   1. Reads the entity universe (PC names from `characters`, NPC names
+ *      from `combat_state.initiative[]`).
+ *   2. Runs `parseNarrationCues` against `dmResponse.narration`.
+ *   3. For every tier-1 cue not already covered by an AI-emitted change,
+ *      splices the cue into `state_changes` BEFORE the apply step runs.
+ *      Logs a `console.warn` so drift surveillance can count auto-emits.
+ *   4. For every tier-2 cue, logs a `console.warn` and does NOT emit.
+ *   5. Delegates to `applyStateChanges` with the (possibly augmented) list.
+ *
+ * The augmented `state_changes[]` is observable in event_log via the AI
+ * response JSONB (which the calling route writes verbatim). This wrapper
+ * doesn't mutate the AI response — only the apply input.
+ *
+ * Why a wrapper rather than inline-in-applyStateChanges: the legacy WSC
+ * route at /api/dm-action calls `applyStateChanges(state_changes)` with
+ * no narration context. Adding the parser there would re-parse legacy
+ * responses for entities the WSC prompt doesn't even use. Routes that
+ * want the parser opt in via `applyStateChangesWithCues`.
+ */
+export async function applyStateChangesWithCues(
+  sessionId: string,
+  dmResponse: DMResponse,
+  extras?: ApplyExtras,
+  /**
+   * Caller-provided state_changes list (may differ from `dmResponse.state_changes`
+   * because the v2 route does defensive entity translation upstream). If
+   * omitted, falls back to `dmResponse.state_changes`.
+   */
+  preTranslatedStateChanges?: Array<{ entity: string; field: string; value: unknown }>,
+): Promise<{
+  appliedStateChanges: Array<{ entity: string; field: string; value: unknown }>
+  autoEmittedCues: ParsedCue[]
+  warnedCues: ParsedCue[]
+}> {
+  const baseStateChanges = preTranslatedStateChanges ?? dmResponse.state_changes ?? []
+  const entities = await loadKnownEntities(sessionId)
+  const cues = parseNarrationCues(dmResponse.narration ?? '', entities)
+
+  const autoEmittedCues: ParsedCue[] = []
+  const warnedCues: ParsedCue[] = []
+
+  // Mutable working copy. We avoid mutating the AI response.
+  const augmented: Array<{ entity: string; field: string; value: unknown }> = [
+    ...baseStateChanges,
+  ]
+
+  for (const cue of cues) {
+    if (cue.tier === 1) {
+      if (isCueAlreadyEmitted(cue, augmented)) {
+        // AI already covered it — nothing to do. (Useful: this is the
+        // happy-path case where prompt rules in POL-15-21-22d worked.)
+        continue
+      }
+      augmented.push({ entity: cue.entity, field: cue.field, value: cue.value })
+      autoEmittedCues.push(cue)
+      console.warn(
+        `[parser] Auto-emitted: ${cue.field} for ${cue.entity} = ${JSON.stringify(cue.value)} (reason: ${cue.reason})`,
+      )
+    } else {
+      warnedCues.push(cue)
+      console.warn(
+        `[parser] WARN: detected ${cue.field} cue for ${cue.entity} in narration but no state_change emitted. Source: "${cue.source_text}". Confidence: ${cue.confidence.toFixed(2)}. Reason: ${cue.reason}`,
+      )
+    }
+  }
+
+  await applyStateChanges(sessionId, augmented, extras)
+
+  return { appliedStateChanges: augmented, autoEmittedCues, warnedCues }
+}
+
+/**
+ * Build the `KnownEntities` map for the parser. PCs from `characters`,
+ * NPCs from `combat_state.initiative[]`. Read-only.
+ */
+async function loadKnownEntities(sessionId: string): Promise<KnownEntities> {
+  const pcs: string[] = []
+  const npcs: string[] = []
+
+  const { data: charRows, error: charErr } = await supabase
+    .from('characters')
+    .select('character_name')
+    .eq('session_id', sessionId)
+  if (charErr) {
+    console.warn(
+      `[applyStateChanges] failed to load PC names for parser: ${charErr.message}`,
+    )
+  } else if (Array.isArray(charRows)) {
+    for (const r of charRows) {
+      if (typeof r.character_name === 'string' && r.character_name.trim() !== '') {
+        pcs.push(r.character_name)
+      }
+    }
+  }
+
+  const { data: stateRow, error: gsErr } = await supabase
+    .from('game_state')
+    .select('combat_state')
+    .eq('session_id', sessionId)
+    .maybeSingle()
+  if (gsErr) {
+    console.warn(
+      `[applyStateChanges] failed to load combat_state for parser: ${gsErr.message}`,
+    )
+  } else if (stateRow?.combat_state) {
+    const cs = stateRow.combat_state as { initiative?: Array<{ name?: string; is_player?: boolean }> }
+    if (Array.isArray(cs.initiative)) {
+      for (const e of cs.initiative) {
+        if (typeof e.name !== 'string' || e.name.trim() === '') continue
+        if (e.is_player === true) continue // already in pcs from characters
+        npcs.push(e.name)
+      }
+    }
+  }
+
+  return { pcs, npcs }
 }
 
 // ---------------------------------------------------------------------------
