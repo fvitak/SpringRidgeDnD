@@ -6,6 +6,11 @@ import { useSearchParams } from 'next/navigation'
 import QRCode from 'qrcode'
 import { createClient } from '@supabase/supabase-js'
 import Map, { type SceneData } from './components/Map'
+import ActionPicker, {
+  useCombatTurnLedger,
+  useActiveCharacterSheet,
+} from './components/ActionPicker'
+import { composeInput } from '@/lib/picker/action-templates'
 import type { MapToken } from '@/lib/movement/validate-move'
 
 // ---------------------------------------------------------------------------
@@ -89,6 +94,13 @@ interface CombatState {
   active: boolean
   round?: number
   initiative?: CombatantEntry[]
+  /**
+   * Server-maintained pointer into `initiative[]` indicating whose turn
+   * it is RIGHT NOW. Added in Cluster B (POL-15-21-22). The host UI's
+   * ActionPicker reads this to resolve the active PC.
+   */
+  active_initiative_index?: number
+  snapshot_seq?: number
 }
 
 interface DMResponse {
@@ -240,8 +252,8 @@ function IntakeGateCard({
     header = 'Hold the curtain a moment.'
     body = (
       <>
-        {joined} haven&rsquo;t told me what makes their hearts move yet. Tap a
-        name in the party rail — there&rsquo;s a QR code waiting. Each player
+        {joined}{' '}haven&rsquo;t told me what makes their hearts move yet. Tap
+        a name in the party rail — there&rsquo;s a QR code waiting. Each player
         scans on their phone and picks three Turn-ons, rolls their Pet Peeves,
         and sees their First Impression of the other. Then I can begin.
       </>
@@ -2135,6 +2147,71 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
 
   const isBusy = isStreaming || isTyping
 
+  // ---------------------------------------------------------------------
+  // POL-25 — resolve the active PC for the action picker.
+  //
+  // Combat-state's `active_initiative_index` is the server-maintained
+  // pointer (Cluster B). The picker reads:
+  //   - the active initiative entry (PC name),
+  //   - the matching party row (character_id),
+  //   - the current round (combat_state.round, 1 by default),
+  //   - the per-PC ledger (action/bonus/reaction/movement used),
+  //   - the full sheet (weapons / spells / features / slots).
+  //
+  // Resolves to null whenever combat is inactive, the active actor is an
+  // NPC, or we don't have a matching party row yet. The picker handles
+  // null gracefully (renders the "NPC turn — wait for narration" label).
+  // ---------------------------------------------------------------------
+  const combatActive = combatState?.active === true
+  const activeInitEntry = (() => {
+    if (!combatActive) return null
+    const idx = combatState?.active_initiative_index ?? 0
+    const entry = combatState?.initiative?.[idx] ?? null
+    return entry?.is_player ? entry : null
+  })()
+  const activePartyRow = activeInitEntry
+    ? party.find((m) => m.character_name === activeInitEntry.name) ?? null
+    : null
+  const activeCharacterId = activePartyRow?.id ?? null
+  const currentCombatRound = combatState?.round ?? 1
+
+  const activeSheet = useActiveCharacterSheet(activeCharacterId)
+  const { ledger: combatLedger, refresh: refreshLedger } = useCombatTurnLedger(
+    sessionId,
+    activeCharacterId,
+    combatActive ? currentCombatRound : null,
+  )
+
+  // Fold a chip's template into the current input value, then place the
+  // cursor at the end so the host can elaborate. Pure operation — the
+  // picker is otherwise stateless about the input.
+  function handleChipPick(template: string) {
+    setInput((current) => {
+      const { next } = composeInput(current, template)
+      return next
+    })
+    setTimeout(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.focus()
+      // The new input value is set in state above; on the next paint the
+      // input reflects it. setSelectionRange against el.value.length
+      // works because the controlled value will already have updated.
+      const len = el.value.length
+      el.setSelectionRange(len, len)
+    }, 0)
+  }
+
+  // After every successful AI turn, the ledger may have changed (action
+  // used, bonus used, etc.) — refresh so chips fade promptly. The polling
+  // hook also catches this within ~4s, but a manual refresh keeps the
+  // chip rail in lock-step with the typewriter finish.
+  useEffect(() => {
+    if (!isStreaming && !isTyping && activeCharacterId) {
+      refreshLedger()
+    }
+  }, [isStreaming, isTyping, activeCharacterId, refreshLedger])
+
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-gray-100 font-serif overflow-hidden">
       {/* Header */}
@@ -2462,6 +2539,17 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
                   Send
                 </button>
               </div>
+
+              {/* POL-25 — action picker chip rail. Renders below the
+                  input field so the input never moves; hidden entirely
+                  outside combat. NPC turns show a one-line placeholder
+                  so the layout doesn't jump. */}
+              <ActionPicker
+                activeCharacter={activeSheet}
+                combatActive={combatActive}
+                ledger={combatLedger}
+                onPick={handleChipPick}
+              />
             </div>
           )
         })()}
