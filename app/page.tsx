@@ -695,20 +695,16 @@ const SCENARIO_OPTIONS = [
 
 function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) => void }) {
   const [scenarioId, setScenarioId] = useState<string>('blackthorn-clan')
-  const [playerCount, setPlayerCount] = useState<2 | 3 | 4>(2)
-  const [dateNightMode, setDateNightMode] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const scenario = SCENARIO_OPTIONS.find((s) => s.id === scenarioId) ?? SCENARIO_OPTIONS[0]
 
-  // Whenever the scenario changes, snap player count into the supported range.
-  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
-  useEffect(() => {
-    if (playerCount > scenario.maxPlayers) setPlayerCount(scenario.maxPlayers as 2 | 3 | 4)
-    else if (playerCount < scenario.minPlayers) setPlayerCount(scenario.minPlayers as 2 | 3 | 4)
-    if (!scenario.supportsDateNight) setDateNightMode(false)
-  }, [scenarioId])
+  // Player count and Date Night are no longer user-facing choices: Blackthorn is
+  // hard-locked at 2 and the product is "AI D&D for Couples", so each partner
+  // picks their own content rating by default.
+  const playerCount = 2 as const
+  const dateNightMode = true
 
   async function handleBeginAdventure() {
     setIsCreating(true)
@@ -746,8 +742,21 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
   }
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-end pb-12 px-4 bg-gray-950">
-      {/* Frosted card — anchored to bottom */}
+    <div className="relative min-h-screen flex flex-col items-center justify-center px-4 py-12 bg-gray-950 bg-[radial-gradient(ellipse_at_top,_rgba(124,58,237,0.18),_transparent_55%),_radial-gradient(ellipse_at_bottom,_rgba(168,85,247,0.08),_transparent_60%)]">
+      <h1
+        className="text-white text-4xl sm:text-5xl text-center mt-4 sm:mt-0 mb-10 sm:mb-14 leading-[0.95] [font-family:var(--font-medieval-sharp)]"
+        style={{ textShadow: '0 2px 12px rgba(168, 85, 247, 0.35)' }}
+      >
+        <span className="whitespace-nowrap">
+          <span className="text-6xl sm:text-7xl">AI</span> Driven{' '}
+          <span className="text-6xl sm:text-7xl">D&amp;D</span>
+        </span>
+        <br className="sm:hidden" />
+        {' '}
+        <span className="whitespace-nowrap">for Couples</span>
+      </h1>
+
+      {/* Frosted card */}
       <div className="w-full max-w-sm bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl p-6 flex flex-col gap-5">
 
         {/* Adventure selector */}
@@ -764,55 +773,6 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
           </select>
         </div>
 
-        {/* Player count — locked to a fixed value when the scenario requires it */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-white text-sm font-medium">
-            Number of Players
-            {scenario.minPlayers === scenario.maxPlayers && (
-              <span className="text-white/50 text-xs ml-2 font-normal">(fixed at {scenario.minPlayers})</span>
-            )}
-          </label>
-          <div className="grid grid-cols-3 gap-3">
-            {([2, 3, 4] as const).map((n) => {
-              const allowed = n >= scenario.minPlayers && n <= scenario.maxPlayers
-              return (
-                <button
-                  key={n}
-                  onClick={() => allowed && setPlayerCount(n)}
-                  disabled={!allowed}
-                  className={`rounded-xl border-2 py-3 text-2xl font-bold min-h-[44px] transition-all ${
-                    !allowed
-                      ? 'border-white/10 bg-white/5 text-white/20 cursor-not-allowed'
-                      : playerCount === n
-                      ? 'border-purple-500 bg-purple-500/20 text-purple-300 shadow-lg shadow-purple-500/20'
-                      : 'border-white/20 bg-white/10 text-white/60 hover:border-white/40 hover:text-white'
-                  }`}
-                >
-                  {n}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Date Night mode toggle — only shown when the scenario supports it */}
-        {scenario.supportsDateNight && (
-          <label className="flex items-center gap-3 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={dateNightMode}
-              onChange={(e) => setDateNightMode(e.target.checked)}
-              className="w-5 h-5 rounded border-white/30 bg-white/10 accent-pink-500"
-            />
-            <span className="flex-1">
-              <span className="text-white text-sm font-medium block">Date Night Mode</span>
-              <span className="text-white/60 text-xs">
-                Each player picks a content rating on their phone. The DM honours the most conservative.
-              </span>
-            </span>
-          </label>
-        )}
-
         {/* Error */}
         {error && (
           <p className="text-red-400 text-sm text-center">{error}</p>
@@ -822,7 +782,7 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
         <button
           onClick={handleBeginAdventure}
           disabled={isCreating}
-          className="w-full py-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-colors shadow-lg min-h-[44px]"
+          className="w-full py-4 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-colors shadow-xl shadow-purple-500/40 ring-1 ring-purple-400/30 min-h-[44px]"
         >
           {isCreating ? 'Creating adventure...' : 'Begin Adventure'}
         </button>
