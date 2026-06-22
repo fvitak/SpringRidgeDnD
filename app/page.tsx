@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, KeyboardEvent, Suspense } from 'react'
-import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import QRCode from 'qrcode'
 import { createClient } from '@supabase/supabase-js'
@@ -688,15 +687,15 @@ function PartySidebar({
 // ---------------------------------------------------------------------------
 
 // Static catalogue used by the picker — keep in sync with lib/scenarios/registry.ts.
+// Only Blackthorn is exposed; WSC and the random-encounter combat test are
+// incomplete and shouldn't represent the project in the UI.
 const SCENARIO_OPTIONS = [
-  { id: 'wild-sheep-chase', name: 'The Wild Sheep Chase',           minPlayers: 2, maxPlayers: 4, supportsDateNight: false },
   { id: 'blackthorn-clan',  name: 'Rescue of the Blackthorn Clan',  minPlayers: 2, maxPlayers: 2, supportsDateNight: true  },
-  { id: 'random-encounter', name: 'Random Encounter (Combat Test)', minPlayers: 2, maxPlayers: 4, supportsDateNight: false },
 ] as const
 
 function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) => void }) {
-  const [scenarioId, setScenarioId] = useState<string>('wild-sheep-chase')
-  const [playerCount, setPlayerCount] = useState<2 | 3 | 4>(4)
+  const [scenarioId, setScenarioId] = useState<string>('blackthorn-clan')
+  const [playerCount, setPlayerCount] = useState<2 | 3 | 4>(2)
   const [dateNightMode, setDateNightMode] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -747,18 +746,7 @@ function SessionCreationModal({ onCreated }: { onCreated: (info: SessionInfo) =>
   }
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-end pb-12 px-4">
-      {/* Background artwork */}
-      <Image
-        src="/grail-bg.png"
-        alt=""
-        fill
-        priority
-        className="object-cover object-center -z-10"
-      />
-      {/* Ambient darkening overlay */}
-      <div className="fixed inset-0 bg-black/20 -z-[5]" />
-
+    <div className="relative min-h-screen flex flex-col items-center justify-end pb-12 px-4 bg-gray-950">
       {/* Frosted card — anchored to bottom */}
       <div className="w-full max-w-sm bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl p-6 flex flex-col gap-5">
 
