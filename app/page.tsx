@@ -2168,6 +2168,24 @@ function NarrationScreen({ session }: { session: SessionInfo }) {
             </p>
           )}
 
+          {/* While the opening kick is in flight, the placeholder above is
+              hidden and there's nothing else to render (no log entries yet,
+              no intake gate). Without this beat the host sees a blank panel
+              the entire time — looks like a hang. Shows for any first-turn
+              streaming, not just the auto-fire. */}
+          {!loadingHistory && log.length === 0 && isBusy && !intakeGateActive && (
+            <div className="flex flex-col items-center gap-3 py-12 text-purple-300/80">
+              <div className="flex gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse [animation-delay:150ms]" />
+                <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse [animation-delay:300ms]" />
+              </div>
+              <p className="text-sm italic">
+                Preparing the opening scene…
+              </p>
+            </div>
+          )}
+
           {log.map((entry, i) => {
             const isLastEntry = i === log.length - 1
             const showCursor = isTyping && isLastEntry && !entry.error
