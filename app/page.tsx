@@ -2449,16 +2449,18 @@ function DMScreenInner() {
 
   function handleSessionCreated(info: SessionInfo) {
     setSession(info)
-    setScreen('lobby')
+    // Fresh Blackthorn sessions land in the intro flow first so the host
+    // (and any over-the-shoulder partner) get the story setup BEFORE the
+    // lobby asks them to create characters. Legacy / non-module sessions
+    // skip straight to the lobby. Resumed sessions also bypass the intro
+    // — see the URL-hash effect above which sets 'lobby' directly.
+    const isBlackthorn =
+      info.module_id === 'blackthorn' || info.scenario_id === 'blackthorn-clan'
+    setScreen(isBlackthorn ? 'intro' : 'lobby')
   }
 
   function handleStartAdventure() {
-    // Blackthorn sessions get the first-time-player intro flow between the
-    // lobby and the live narration; non-module legacy sessions skip it.
-    const isBlackthorn =
-      session?.module_id === 'blackthorn' ||
-      session?.scenario_id === 'blackthorn-clan'
-    setScreen(isBlackthorn ? 'intro' : 'narration')
+    setScreen('narration')
   }
 
   if (screen === 'creation' || !session) {
@@ -2470,7 +2472,7 @@ function DMScreenInner() {
   }
 
   if (screen === 'intro') {
-    return <BlackthornIntro onComplete={() => setScreen('narration')} />
+    return <BlackthornIntro onComplete={() => setScreen('lobby')} />
   }
 
   return <NarrationScreen session={session} />
