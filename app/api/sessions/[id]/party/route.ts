@@ -19,6 +19,12 @@ export interface PartyMember {
    * not on this column.
    */
   pronouns: string | null
+  /**
+   * Per-player content-rating pick. NULL until the player picks on their
+   * phone (via /api/players/:id/rating). The session's effective rating
+   * is the most-conservative pick across all characters.
+   */
+  rating_preference: string | null
 }
 
 export async function GET(
@@ -35,7 +41,7 @@ export async function GET(
     const supabase = getSupabase()
     const { data, error } = await supabase
       .from('characters')
-      .select('id, character_name, class, hp, max_hp, conditions, drinks_consumed, tolerance_threshold, slot, position, pronouns')
+      .select('id, character_name, class, hp, max_hp, conditions, drinks_consumed, tolerance_threshold, slot, position, pronouns, rating_preference')
       .eq('session_id', id)
       .order('slot')
 

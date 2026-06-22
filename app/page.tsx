@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import QRCode from 'qrcode'
 import { createClient } from '@supabase/supabase-js'
 import Map, { type SceneData } from './components/Map'
+import BlackthornIntro from './components/BlackthornIntro'
 import type { MapToken } from '@/lib/movement/validate-move'
 
 // ---------------------------------------------------------------------------
@@ -40,7 +41,7 @@ function getRealtimeClient() {
 // Types
 // ---------------------------------------------------------------------------
 
-type AppScreen = 'creation' | 'lobby' | 'narration'
+type AppScreen = 'creation' | 'lobby' | 'intro' | 'narration'
 
 interface SessionInfo {
   session_id: string
@@ -239,10 +240,10 @@ function IntakeGateCard({
     header = 'Hold the curtain a moment.'
     body = (
       <>
-        {joined} haven&rsquo;t told me what makes their hearts move yet. Tap a
-        name in the party rail — there&rsquo;s a QR code waiting. Each player
-        scans on their phone and picks three Turn-ons, rolls their Pet Peeves,
-        and sees their First Impression of the other. Then I can begin.
+        {joined}{' '}haven&rsquo;t told me what makes their hearts move yet.
+        Tap a name in the party rail — there&rsquo;s a QR code waiting. Each
+        player scans on their phone and picks three Turn-ons, rolls their Pet
+        Peeves, and sees their First Impression of the other. Then I can begin.
       </>
     )
   }
@@ -2452,7 +2453,12 @@ function DMScreenInner() {
   }
 
   function handleStartAdventure() {
-    setScreen('narration')
+    // Blackthorn sessions get the first-time-player intro flow between the
+    // lobby and the live narration; non-module legacy sessions skip it.
+    const isBlackthorn =
+      session?.module_id === 'blackthorn' ||
+      session?.scenario_id === 'blackthorn-clan'
+    setScreen(isBlackthorn ? 'intro' : 'narration')
   }
 
   if (screen === 'creation' || !session) {
@@ -2461,6 +2467,10 @@ function DMScreenInner() {
 
   if (screen === 'lobby') {
     return <LobbyScreen session={session} onStartAdventure={handleStartAdventure} />
+  }
+
+  if (screen === 'intro') {
+    return <BlackthornIntro onComplete={() => setScreen('narration')} />
   }
 
   return <NarrationScreen session={session} />
